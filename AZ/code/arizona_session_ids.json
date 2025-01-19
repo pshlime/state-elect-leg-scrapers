@@ -1,0 +1,650 @@
+[
+    {
+        "SessionId": 129,
+        "Code": "1R",
+        "Name": "2025 - Fifty-seventh Legislature - First Regular Session",
+        "Legislature": "57"
+    },
+    {
+        "SessionId": 128,
+        "Code": "2R",
+        "Name": "2024 - Fifty-sixth Legislature - Second Regular Session",
+        "Legislature": "56"
+    },
+    {
+        "SessionId": 127,
+        "Code": "1R",
+        "Name": "2023 - Fifty-sixth Legislature - First Regular Session",
+        "Legislature": "56"
+    },
+    {
+        "SessionId": 125,
+        "Code": "2R",
+        "Name": "2022 - Fifty-fifth Legislature - Second Regular Session",
+        "Legislature": "55"
+    },
+    {
+        "SessionId": 124,
+        "Code": "1S",
+        "Name": "2021 - Fifty-fifth Legislature - First Special Session",
+        "Legislature": "55"
+    },
+    {
+        "SessionId": 123,
+        "Code": "1R",
+        "Name": "2021 - Fifty-fifth Legislature - First Regular Session",
+        "Legislature": "55"
+    },
+    {
+        "SessionId": 122,
+        "Code": "2R",
+        "Name": "2020 - Fifty-fourth Legislature - Second Regular Session",
+        "Legislature": "54"
+    },
+    {
+        "SessionId": 121,
+        "Code": "1R",
+        "Name": "2019 - Fifty-fourth Legislature - First Regular Session",
+        "Legislature": "54"
+    },
+    {
+        "SessionId": 120,
+        "Code": "1S",
+        "Name": "2018 - Fifty-third Legislature - First Special Session",
+        "Legislature": "53"
+    },
+    {
+        "SessionId": 119,
+        "Code": "2R",
+        "Name": "2018 - Fifty-third Legislature - Second Regular Session",
+        "Legislature": "53"
+    },
+    {
+        "SessionId": 117,
+        "Code": "1R",
+        "Name": "2017 - Fifty-third Legislature - First Regular Session",
+        "Legislature": "53"
+    },
+    {
+        "SessionId": 115,
+        "Code": "2R",
+        "Name": "2016 - Fifty-second Legislature - Second Regular Session",
+        "Legislature": "52"
+    },
+    {
+        "SessionId": 116,
+        "Code": "1S",
+        "Name": "2015 - Fifty-second Legislature - First Special Session",
+        "Legislature": "52"
+    },
+    {
+        "SessionId": 114,
+        "Code": "1R",
+        "Name": "2015 - Fifty-second Legislature - First Regular Session",
+        "Legislature": "52"
+    },
+    {
+        "SessionId": 113,
+        "Code": "2S",
+        "Name": "2014 - Fifty-first Legislature - Second Special Session",
+        "Legislature": "51"
+    },
+    {
+        "SessionId": 112,
+        "Code": "2R",
+        "Name": "2014 - Fifty-first Legislature - Second Regular Session",
+        "Legislature": "51"
+    },
+    {
+        "SessionId": 111,
+        "Code": "1S",
+        "Name": "2013 - Fifty-first Legislature - First Special Session",
+        "Legislature": "51"
+    },
+    {
+        "SessionId": 110,
+        "Code": "1R",
+        "Name": "2013 - Fifty-first Legislature - First Regular Session",
+        "Legislature": "51"
+    },
+    {
+        "SessionId": 107,
+        "Code": "2R",
+        "Name": "2012 - Fiftieth Legislature - Second Regular Session",
+        "Legislature": "50"
+    },
+    {
+        "SessionId": 108,
+        "Code": "4S",
+        "Name": "2011 - Fiftieth Legislature - Fourth Special Session",
+        "Legislature": "50"
+    },
+    {
+        "SessionId": 106,
+        "Code": "3S",
+        "Name": "2011 - Fiftieth Legislature - Third Special Session",
+        "Legislature": "50"
+    },
+    {
+        "SessionId": 105,
+        "Code": "2S",
+        "Name": "2011 - Fiftieth Legislature - Second Special Session",
+        "Legislature": "50"
+    },
+    {
+        "SessionId": 104,
+        "Code": "1S",
+        "Name": "2011 - Fiftieth Legislature - First Special Session",
+        "Legislature": "50"
+    },
+    {
+        "SessionId": 102,
+        "Code": "1R",
+        "Name": "2011 - Fiftieth Legislature - First Regular Session",
+        "Legislature": "50"
+    },
+    {
+        "SessionId": 103,
+        "Code": "9S",
+        "Name": "2010 - Forty-ninth Legislature - Ninth Special Session",
+        "Legislature": "49"
+    },
+    {
+        "SessionId": 101,
+        "Code": "8S",
+        "Name": "2010 - Forty-ninth Legislature - Eighth Special Session",
+        "Legislature": "49"
+    },
+    {
+        "SessionId": 96,
+        "Code": "7S",
+        "Name": "2010 - Forty-ninth Legislature - Seventh Special Session",
+        "Legislature": "49"
+    },
+    {
+        "SessionId": 95,
+        "Code": "6S",
+        "Name": "2010 - Forty-ninth Legislature - Sixth Special Session",
+        "Legislature": "49"
+    },
+    {
+        "SessionId": 93,
+        "Code": "2R",
+        "Name": "2010 - Forty-ninth Legislature - Second Regular Session",
+        "Legislature": "49"
+    },
+    {
+        "SessionId": 94,
+        "Code": "5S",
+        "Name": "2009 - Forty-ninth Legislature - Fifth Special Session",
+        "Legislature": "49"
+    },
+    {
+        "SessionId": 92,
+        "Code": "4S",
+        "Name": "2009 - Forty-ninth Legislature - Fourth Special Session",
+        "Legislature": "49"
+    },
+    {
+        "SessionId": 91,
+        "Code": "3S",
+        "Name": "2009 - Forty-ninth Legislature - Third Special Session",
+        "Legislature": "49"
+    },
+    {
+        "SessionId": 90,
+        "Code": "2S",
+        "Name": "2009 - Forty-ninth Legislature - Second Special Session",
+        "Legislature": "49"
+    },
+    {
+        "SessionId": 89,
+        "Code": "1S",
+        "Name": "2009 - Forty-ninth Legislature - First Special Session",
+        "Legislature": "49"
+    },
+    {
+        "SessionId": 87,
+        "Code": "1R",
+        "Name": "2009 - Forty-ninth Legislature - First Regular Session",
+        "Legislature": "49"
+    },
+    {
+        "SessionId": 86,
+        "Code": "2R",
+        "Name": "2008 - Forty-eighth Legislature - Second Regular Session",
+        "Legislature": "48"
+    },
+    {
+        "SessionId": 85,
+        "Code": "1R",
+        "Name": "2007 - Forty-eighth Legislature - First Regular Session",
+        "Legislature": "48"
+    },
+    {
+        "SessionId": 84,
+        "Code": "1S",
+        "Name": "2006 - Forty-seventh Legislature - First Special Session",
+        "Legislature": "47"
+    },
+    {
+        "SessionId": 83,
+        "Code": "2R",
+        "Name": "2006 - Forty-seventh Legislature - Second Regular Session",
+        "Legislature": "47"
+    },
+    {
+        "SessionId": 82,
+        "Code": "1R",
+        "Name": "2005 - Forty-seventh Legislature - First Regular Session",
+        "Legislature": "47"
+    },
+    {
+        "SessionId": 79,
+        "Code": "2R",
+        "Name": "2004 - Forty-sixth Legislature - Second Regular Session",
+        "Legislature": "46"
+    },
+    {
+        "SessionId": 80,
+        "Code": "2S",
+        "Name": "2003 - Forty-sixth Legislature - Second Special Session",
+        "Legislature": "46"
+    },
+    {
+        "SessionId": 78,
+        "Code": "1S",
+        "Name": "2003 - Forty-sixth Legislature - First Special Session",
+        "Legislature": "46"
+    },
+    {
+        "SessionId": 76,
+        "Code": "1R",
+        "Name": "2003 - Forty-sixth Legislature - First Regular Session",
+        "Legislature": "46"
+    },
+    {
+        "SessionId": 77,
+        "Code": "6S",
+        "Name": "2002 - Forty-fifth Legislature - Sixth Special Session",
+        "Legislature": "45"
+    },
+    {
+        "SessionId": 75,
+        "Code": "5S",
+        "Name": "2002 - Forty-fifth Legislature - Fifth Special Session",
+        "Legislature": "45"
+    },
+    {
+        "SessionId": 74,
+        "Code": "4S",
+        "Name": "2002 - Forty-fifth Legislature - Fourth Special Session",
+        "Legislature": "45"
+    },
+    {
+        "SessionId": 73,
+        "Code": "3S",
+        "Name": "2002 - Forty-fifth Legislature - Third Special Session",
+        "Legislature": "45"
+    },
+    {
+        "SessionId": 71,
+        "Code": "2R",
+        "Name": "2002 - Forty-fifth Legislature - Second Regular Session",
+        "Legislature": "45"
+    },
+    {
+        "SessionId": 72,
+        "Code": "2S",
+        "Name": "2001 - Forty-fifth Legislature - Second Special Session",
+        "Legislature": "45"
+    },
+    {
+        "SessionId": 70,
+        "Code": "1S",
+        "Name": "2001 - Forty-fifth Legislature - First Special Session",
+        "Legislature": "45"
+    },
+    {
+        "SessionId": 67,
+        "Code": "1R",
+        "Name": "2001 - Forty-fifth Legislature - First Regular Session",
+        "Legislature": "45"
+    },
+    {
+        "SessionId": 69,
+        "Code": "7S",
+        "Name": "2000 - Forty-fourth Legislature - Seventh Special Session",
+        "Legislature": "44"
+    },
+    {
+        "SessionId": 68,
+        "Code": "6S",
+        "Name": "2000 - Forty-fourth Legislature - Sixth Special Session",
+        "Legislature": "44"
+    },
+    {
+        "SessionId": 66,
+        "Code": "5S",
+        "Name": "2000 - Forty-fourth Legislature - Fifth Special Session",
+        "Legislature": "44"
+    },
+    {
+        "SessionId": 65,
+        "Code": "4S",
+        "Name": "2000 - Forty-fourth Legislature - Fourth Special Session",
+        "Legislature": "44"
+    },
+    {
+        "SessionId": 63,
+        "Code": "2R",
+        "Name": "2000 - Forty-fourth Legislature - Second Regular Session",
+        "Legislature": "44"
+    },
+    {
+        "SessionId": 64,
+        "Code": "3S",
+        "Name": "1999 - Forty-fourth Legislature - Third Special Session",
+        "Legislature": "44"
+    },
+    {
+        "SessionId": 62,
+        "Code": "2S",
+        "Name": "1999 - Forty-fourth Legislature - Second Special Session",
+        "Legislature": "44"
+    },
+    {
+        "SessionId": 61,
+        "Code": "1S",
+        "Name": "1999 - Forty-fourth Legislature - First Special Session",
+        "Legislature": "44"
+    },
+    {
+        "SessionId": 60,
+        "Code": "1R",
+        "Name": "1999 - Forty-fourth Legislature - First Regular Session",
+        "Legislature": "44"
+    },
+    {
+        "SessionId": 57,
+        "Code": "6S",
+        "Name": "1998 - Forty-third Legislature - Sixth Special Session",
+        "Legislature": "43"
+    },
+    {
+        "SessionId": 56,
+        "Code": "5S",
+        "Name": "1998 - Forty-third Legislature - Fifth Special Session",
+        "Legislature": "43"
+    },
+    {
+        "SessionId": 55,
+        "Code": "4S",
+        "Name": "1998 - Forty-third Legislature - Fourth Special Session",
+        "Legislature": "43"
+    },
+    {
+        "SessionId": 54,
+        "Code": "3S",
+        "Name": "1998 - Forty-third Legislature - Third Special Session",
+        "Legislature": "43"
+    },
+    {
+        "SessionId": 52,
+        "Code": "2R",
+        "Name": "1998 - Forty-third Legislature - Second Regular Session",
+        "Legislature": "43"
+    },
+    {
+        "SessionId": 53,
+        "Code": "2S",
+        "Name": "1997 - Forty-third Legislature - Second Special Session",
+        "Legislature": "43"
+    },
+    {
+        "SessionId": 51,
+        "Code": "1S",
+        "Name": "1997 - Forty-third Legislature - First Special Session",
+        "Legislature": "43"
+    },
+    {
+        "SessionId": 50,
+        "Code": "1R",
+        "Name": "1997 - Forty-third Legislature - First Regular Session",
+        "Legislature": "43"
+    },
+    {
+        "SessionId": 38,
+        "Code": "7S",
+        "Name": "1996 - Forty-second Legislature - Seventh Special Session",
+        "Legislature": "42"
+    },
+    {
+        "SessionId": 37,
+        "Code": "6S",
+        "Name": "1996 - Forty-second Legislature - Sixth Special Session",
+        "Legislature": "42"
+    },
+    {
+        "SessionId": 36,
+        "Code": "5S",
+        "Name": "1996 - Forty-second Legislature - Fifth Special Session",
+        "Legislature": "42"
+    },
+    {
+        "SessionId": 33,
+        "Code": "2R",
+        "Name": "1996 - Forty-second Legislature - Second Regular Session",
+        "Legislature": "42"
+    },
+    {
+        "SessionId": 35,
+        "Code": "4S",
+        "Name": "1995 - Forty-second Legislature - Fourth Special Session",
+        "Legislature": "42"
+    },
+    {
+        "SessionId": 34,
+        "Code": "3S",
+        "Name": "1995 - Forty-second Legislature - Third Special Session",
+        "Legislature": "42"
+    },
+    {
+        "SessionId": 32,
+        "Code": "2S",
+        "Name": "1995 - Forty-Second Legislature - Second Special Session",
+        "Legislature": "42"
+    },
+    {
+        "SessionId": 31,
+        "Code": "1S",
+        "Name": "1995 - Forty-Second Legislature - First Special Session",
+        "Legislature": "42"
+    },
+    {
+        "SessionId": 30,
+        "Code": "1R",
+        "Name": "1995 - Forty-second Legislature - First Regular Session",
+        "Legislature": "42"
+    },
+    {
+        "SessionId": 29,
+        "Code": "9S",
+        "Name": "1994 - Forty-first Legislature - Ninth Special Session",
+        "Legislature": "41"
+    },
+    {
+        "SessionId": 28,
+        "Code": "8S",
+        "Name": "1994 - Forty-first Legislature - Eighth Special Session",
+        "Legislature": "41"
+    },
+    {
+        "SessionId": 21,
+        "Code": "2R",
+        "Name": "1994 - Forty-first Legislature - Second Regular Session",
+        "Legislature": "41"
+    },
+    {
+        "SessionId": 27,
+        "Code": "7S",
+        "Name": "1993 - Forty-first Legislature - Seventh Special Session",
+        "Legislature": "41"
+    },
+    {
+        "SessionId": 26,
+        "Code": "6S",
+        "Name": "1993 - Forty-first Legislature - Sixth Special Session",
+        "Legislature": "41"
+    },
+    {
+        "SessionId": 25,
+        "Code": "5S",
+        "Name": "1993 - Forty-first Legislature - Fifth Special Session",
+        "Legislature": "41"
+    },
+    {
+        "SessionId": 24,
+        "Code": "4S",
+        "Name": "1993 - Forty-first Legislature - Fourth Special Session",
+        "Legislature": "41"
+    },
+    {
+        "SessionId": 23,
+        "Code": "3S",
+        "Name": "1993 - Forty-first Legislature - Third Special Session",
+        "Legislature": "41"
+    },
+    {
+        "SessionId": 22,
+        "Code": "2S",
+        "Name": "1993 - Forty-first Legislature - Second Special Session",
+        "Legislature": "41"
+    },
+    {
+        "SessionId": 20,
+        "Code": "1S",
+        "Name": "1993 - Forty-first Legislature - First Special Session",
+        "Legislature": "41"
+    },
+    {
+        "SessionId": 19,
+        "Code": "1R",
+        "Name": "1993 - Forty-first Legislature - First Regular Session",
+        "Legislature": "41"
+    },
+    {
+        "SessionId": 18,
+        "Code": "9S",
+        "Name": "1992 - Fortieth Legislature - Ninth Special Session",
+        "Legislature": "40"
+    },
+    {
+        "SessionId": 17,
+        "Code": "8S",
+        "Name": "1992 - Fortieth Legislature - Eighth Special Session",
+        "Legislature": "40"
+    },
+    {
+        "SessionId": 16,
+        "Code": "7S",
+        "Name": "1992 - Fortieth Legislature - Seventh Special Session",
+        "Legislature": "40"
+    },
+    {
+        "SessionId": 14,
+        "Code": "5S",
+        "Name": "1992 - Fortieth Legislature - Fifth Special Session",
+        "Legislature": "40"
+    },
+    {
+        "SessionId": 15,
+        "Code": "6S",
+        "Name": "1992 - Fortieth Legislature - Sixth Special Session",
+        "Legislature": "40"
+    },
+    {
+        "SessionId": 10,
+        "Code": "2R",
+        "Name": "1992 - Fortieth Legislature - Second Regular Session",
+        "Legislature": "40"
+    },
+    {
+        "SessionId": 13,
+        "Code": "4S",
+        "Name": "1991 - Fortieth Legislature - Fourth Special Session",
+        "Legislature": "40"
+    },
+    {
+        "SessionId": 12,
+        "Code": "3S",
+        "Name": "1991 - Fortieth Legislature - Third Special Session",
+        "Legislature": "40"
+    },
+    {
+        "SessionId": 11,
+        "Code": "2S",
+        "Name": "1991 - Fortieth Legislature - Second Special Session",
+        "Legislature": "40"
+    },
+    {
+        "SessionId": 9,
+        "Code": "1S",
+        "Name": "1991 - Fortieth Legislature - First Special Session",
+        "Legislature": "40"
+    },
+    {
+        "SessionId": 8,
+        "Code": "1R",
+        "Name": "1991 - Fortieth Legislature - First Regular Session",
+        "Legislature": "40"
+    },
+    {
+        "SessionId": 7,
+        "Code": "5S",
+        "Name": "1990 - Thirty-ninth Legislature - Fifth Special Session",
+        "Legislature": "39"
+    },
+    {
+        "SessionId": 6,
+        "Code": "4S",
+        "Name": "1990 - Thirty-ninth Legislature - Fourth Special Session",
+        "Legislature": "39"
+    },
+    {
+        "SessionId": 5,
+        "Code": "3S",
+        "Name": "1990 - Thirty-ninth Legislature - Third Special Session",
+        "Legislature": "39"
+    },
+    {
+        "SessionId": 3,
+        "Code": "2R",
+        "Name": "1990 - Thirty-ninth Legislature - Second Regular Session",
+        "Legislature": "39"
+    },
+    {
+        "SessionId": 4,
+        "Code": "2S",
+        "Name": "1989 - Thirty-ninth Legislature - Second Special Session",
+        "Legislature": "39"
+    },
+    {
+        "SessionId": 2,
+        "Code": "1S",
+        "Name": "1989 - Thirty-ninth Legislature - First Special Session",
+        "Legislature": "39"
+    },
+    {
+        "SessionId": 1,
+        "Code": "1R",
+        "Name": "1989 - Thirty-ninth Legislature - First Regular Session",
+        "Legislature": "39"
+    },
+    {
+        "SessionId": 97,
+        "Code": "2R",
+        "Name": "2023 - Miscellaneous Legislature - New Member Orientation Session",
+        "Legislature": "99"
+    }
+]
