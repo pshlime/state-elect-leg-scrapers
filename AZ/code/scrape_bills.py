@@ -208,7 +208,7 @@ class AZBillScraper():
 
 
     def get_session_id(self, session_name):
-        with open('./arizona_session_ids.json', 'r') as file:
+        with open('AZ/code/arizona_session_ids.json', 'r') as file:
             data = json.load(file)
 
         for session in data:
@@ -218,7 +218,7 @@ class AZBillScraper():
         raise KeyError("Cannot find session")
 
     def write_file(self, file_name, directory, data):
-        with open(f'../output/{directory}/{file_name}.json', 'w') as f:
+        with open(f'AZ/output/{directory}/{file_name}.json', 'w') as f:
             json.dump(data, f, indent=4)
 
 if __name__ == "__main__":
