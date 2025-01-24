@@ -92,6 +92,7 @@ def scrape_bill_history(uuid, state, state_bill_id, session):
 
     actions = []
     actions_ids = []
+    last_action = None
 
     body_types = {
         "H": "House",
@@ -101,7 +102,8 @@ def scrape_bill_history(uuid, state, state_bill_id, session):
         "FINAL": "Final Passage",
         "THIRD": "Third Reading",
         "SECOND": "Second Reading",
-        "FIRST": "First Reading"
+        "FIRST": "First Reading",
+        "_STANDING": "STANDING",
     }
 
     for status in page:
@@ -115,9 +117,16 @@ def scrape_bill_history(uuid, state, state_bill_id, session):
         if action_type in action_types:
             action_type = action_types[action_type]
 
-        action = (
-            "{}: {}".format(action_body, action_type)
-        )
+        if action_type != "STANDING":
+            action = (
+                "{}: {}".format(action_body, action_type)
+            )
+        else:
+            committee = status["col2"]
+            actual_action = status["col7"]
+            action = (
+                "{}: {} - {} - {}".format(action_body, action_type, committee, actual_action)
+            )
 
         date = status["SortedDate"]
         date_formatted = date.split("T")[0]
@@ -126,6 +135,9 @@ def scrape_bill_history(uuid, state, state_bill_id, session):
             "date": date_formatted,
             "action": action,
         }
+
+        if action_type == "GOVERNOR" and status["Other"]:
+            last_action = "Enacted"
 
         actions.append(action_data)
         actions_ids.append(action_id)
@@ -138,7 +150,10 @@ def scrape_bill_history(uuid, state, state_bill_id, session):
         "history": actions
     }
 
-    return bill_history_data, actions[-1]["action"], actions_ids
+    if not last_action:
+        last_action = actions[-1]["action"]
+
+    return bill_history_data, last_action, actions_ids
 
 def scrape_votes(uuid, state, state_bill_id, session, internal_id, action_ids):
     response_key = {
@@ -165,7 +180,13 @@ def scrape_votes(uuid, state, state_bill_id, session, internal_id, action_ids):
                 report_date = floor_action["ReportDate"].split("T")[0]
                 ayes = floor_action["Ayes"]
                 nays = floor_action["Nays"]
-                other = floor_action["Absent"] + floor_action["NotVoting"] + floor_action["Present"] + floor_action["Excused"] + floor_action["Vacant"]
+
+                other = floor_action["NotVoting"] + floor_action["Excused"] + floor_action["Vacant"]
+                if floor_action["Absent"]:
+                    other += floor_action["Abset"]
+
+                if floor_action["Present"]:
+                    other += floor_action["Present"]
 
                 roll_call = []
 
