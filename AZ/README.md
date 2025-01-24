@@ -5,8 +5,7 @@
 To scrape a bill, create an instance of the class, call the method scrape_bill.
 
 ```
-scraper = AZBillScraper()
-scraper.scrape_bill(uuid, state, state_bill_id, session)
+scrape_bill(uuid, state, state_bill_id, session)
 ```
 
 Expected input for scrape_bill

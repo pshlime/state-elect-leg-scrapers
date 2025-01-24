@@ -183,7 +183,7 @@ def scrape_votes(uuid, state, state_bill_id, session, internal_id, action_ids):
 
                 other = floor_action["NotVoting"] + floor_action["Excused"] + floor_action["Vacant"]
                 if floor_action["Absent"]:
-                    other += floor_action["Abset"]
+                    other += floor_action["Absent"]
 
                 if floor_action["Present"]:
                     other += floor_action["Present"]
