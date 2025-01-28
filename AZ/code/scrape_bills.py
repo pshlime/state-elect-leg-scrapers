@@ -77,7 +77,7 @@ def scrape_sponsors(uuid, state, state_bill_id, session, internal_id):
         "state": state,
         "session": session,
         "state_bill_id": state_bill_id,
-        "sponsors": sponsors
+        "sponsors": [sponsors]
     }
 
     return sponsor_data
@@ -147,7 +147,7 @@ def scrape_bill_history(uuid, state, state_bill_id, session):
         "state": state,
         "session": session,
         "state_bill_id": state_bill_id,
-        "history": actions
+        "history": [actions]
     }
 
     if not last_action:
@@ -215,7 +215,7 @@ def scrape_votes(uuid, state, state_bill_id, session, internal_id, action_ids):
                     "yeas": ayes,
                     "nays": nays,
                     "other": other,
-                    "roll_call": roll_call
+                    "roll_call": [roll_call]
                 }
 
                 date_without_dash = re.sub("-", "", report_date)

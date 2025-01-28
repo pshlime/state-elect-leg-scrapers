@@ -13,6 +13,7 @@ rm(list = ls())
 gc()
 
 DROPBOX_PATH <- '/Users/josephloffredo/MIT Dropbox/Joseph Loffredo/previous_leg_files/NC'
+OUTPUT_PATH <- 'NC/output'
 
 # Wrangle OpenStates ------------------------------------------------------
 #### Sponsors ####
@@ -44,7 +45,7 @@ vote_people_df <- do.call(rbind,vote_people)
 bills_df$jurisdiction <- state.abb[match(bills_df$jurisdiction,state.name)]
 
 # Get most recent action and intro date
-bill_actions_df$date <- ymd(as.Date(bill_actions_df$date))
+bill_actions_df$date <- lubridate::ymd(as.Date(bill_actions_df$date))
 most_recent_action <- bill_actions_df |>
   group_by(bill_id) |>
   slice(which.min(order)) |>
@@ -81,6 +82,7 @@ bills_df <- bills_df |>
         'HRB'='H','SRB'='S','LD'='H')),
     bill_number = str_replace_all(identifier, "^[A-Z\\s]+",""),
     uuid = glue("{state}{intro_year}{bill_type}{bill_number}"),
+    session_identifier = as.character(session_identifier),
     state_url = NA) |>
   rename(
     session = session_identifier,
@@ -112,7 +114,15 @@ sponsors <- sponsorships_df |>
 # Create dataframe for bill_history
 bill_history <- bill_actions_df |>
   left_join(bills_df, by = c("bill_id" = "id")) |>
-  select(uuid, state, session, state_bill_id, date, action = description.x) |>
+  mutate(
+    chamber = case_when(
+      organization_id == 'ocd-organization/6347dffa-4778-4dc0-97d7-fd4db3ff5328' ~ 'Senate',
+      organization_id == 'ocd-organization/4861d484-9f30-411a-baaf-c2c12d4d174f' ~ 'House',
+      TRUE ~ NA_character_
+    ),
+    action = glue("{chamber}: {description.x}")
+  )
+  select(uuid, state, session, state_bill_id, date, action) |>
   group_by(uuid, state, session, state_bill_id) |>
   nest(history = c(date, action)) |>
   ungroup()
@@ -120,7 +130,7 @@ bill_history <- bill_actions_df |>
 # Create dataframe for votes
 votes <- votes_df |>
   left_join(bills_df |> select(id, state, state_bill_id, uuid, session), by = c("bill_id" = "id")) |>
-  filter(session >= 2001) |>
+  filter(session >= '2001') |>
   mutate(
     description = ifelse(str_detect(motion_classification, "passage"), glue("Passage - {motion_text}"), motion_text) |>
       str_replace_all("\\\\"," "),
@@ -150,3 +160,31 @@ votes <- votes_df |>
   group_by(uuid, state, session, state_bill_id, chamber, date, description, yeas, nays, other) |>
   nest(roll_call = c(name, response)) |>
   ungroup()
+
+rm(bill_actions, bill_actions_df, bills, bills_df, intro_date, most_recent_action, sponsorships, sponsorships_df, votes_df, vote_people, vote_people_df, vote_counts, vote_counts_df)
+
+# Function to create output -----------------------------------------------
+scrape_bill <- function(UUID){
+  
+  # Save bill_metadata
+  bill_metadata |> filter(uuid == UUID) |> as.list() |> toJSON(auto_unbox = T, pretty = T) |> writeLines(glue("{OUTPUT_PATH}/bill_metadata/{UUID}.json"))
+  
+  # Save sponsors
+  sponsors |> filter(uuid == UUID) |> as.list() |> toJSON(auto_unbox = T, pretty = T) |> writeLines(glue("{OUTPUT_PATH}/sponsors/{UUID}.json"))
+  
+  # Save bill_history
+  bill_history |> filter(uuid == UUID) |> as.list() |> toJSON(auto_unbox = T, pretty = T) |> writeLines(glue("{OUTPUT_PATH}/bill_history/{UUID}.json"))
+  
+  # Save votes
+  output_votes <- votes |> filter(uuid == UUID)
+  if(nrow(output_votes) == 1){
+    vote_date <- output_votes |> pull(date) |> as.character() |> str_replace_all("-","")
+    output_votes |> as.list() |> toJSON(auto_unbox = T, pretty = T) |> writeLines(glue("{OUTPUT_PATH}/votes/{UUID}_{vote_date}.json"))
+  } else if(nrow(output_votes) > 1) {
+    for(i in 1:nrow(output_votes)){
+      vote_date = output_votes[i,] |> pull(date) |> as.character() |> str_replace_all("-","")
+      output_votes[i,] |> as.list() |> toJSON(auto_unbox = T, pretty = T) |> writeLines(glue("{OUTPUT_PATH}/votes/{UUID}_{vote_date}_{i}.json"))
+    }
+  }
+}
+   
