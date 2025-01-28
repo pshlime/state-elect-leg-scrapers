@@ -1,0 +1,28 @@
+{
+  "R": {
+    "Version": "4.4.1",
+    "Repositories": [
+      {
+        "Name": "CRAN",
+        "URL": "https://cran.rstudio.com"
+      }
+    ]
+  },
+  "Python": {
+    "Version": "3.9.6",
+    "Type": "virtualenv",
+    "Name": "./renv/python/virtualenvs/renv-python-3.9"
+  },
+  "Packages": {
+    "renv": {
+      "Package": "renv",
+      "Version": "1.0.7",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Requirements": [
+        "utils"
+      ],
+      "Hash": "397b7b2a265bc5a7a06852524dabae20"
+    }
+  }
+}
