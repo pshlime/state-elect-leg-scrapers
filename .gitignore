@@ -172,3 +172,6 @@ cython_debug/
 .Rproj.user
 
 *.json
+.DS_Store
+
+/output/*
