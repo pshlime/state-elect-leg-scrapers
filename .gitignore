@@ -174,4 +174,5 @@ cython_debug/
 *.json
 .DS_Store
 
+# All output files ignored
 /output/*

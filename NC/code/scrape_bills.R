@@ -35,5 +35,25 @@ bill_actions_df <- do.call(rbind,bill_actions)
 vote_people <- lapply(list.files(path = DROPBOX_PATH, pattern = "vote_people.csv",full.names = T, recursive = T), read.csv)
 vote_people_df <- do.call(rbind,vote_people)
 
+# Clean lookup files ------------------------------------------------------
+# State name --> state code
+bills_df$jurisdiction <- state.abb[match(bills_df$jurisdiction,state.name)]
+
+# Get most recent action and intro date
+bill_actions_df$date <- ymd(as.Date(bill_actions_df$date))
+most_recent_action <- bill_actions_df |>
+  group_by(bill_id) |>
+  slice(which.max(order)) |>
+  mutate(
+    last_action_date = date,
+    last_action = classification,
+    last_action_description = description) |>
+  select(bill_id, last_action, last_action_date) |>
+  distinct()
+
+intro_date <- bill_actions_df |> 
+  filter(order == 0) |>
+  mutate(intro_year = year(date)) %>%
+  select(bill_id, intro_date = date, intro_year)
 
 
