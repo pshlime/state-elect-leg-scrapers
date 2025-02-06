@@ -172,3 +172,7 @@ cython_debug/
 .Rproj.user
 
 *.json
+.DS_Store
+
+# All output files ignored
+/output/*
