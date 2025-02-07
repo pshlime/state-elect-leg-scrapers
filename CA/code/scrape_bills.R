@@ -238,7 +238,7 @@ scrape_bill <- function(UUID, session = NA, bill_number = NA){
   page_links <- get_page_links(state_url)
   
   get_bill_metadata(UUID, session, bill_number, state_url, page_links)
-  get_sponsors(UUID, session, bill_number, page_links)
+  get_bill_sponsors(UUID, session, bill_number, page_links)
   get_bill_history(UUID, session, bill_number, page_links)
   get_votes(UUID, session, bill_number)
 }
