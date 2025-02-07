@@ -121,7 +121,7 @@ bill_history <- bill_actions_df |>
       TRUE ~ NA_character_
     ),
     action = glue("{chamber}: {description.x}")
-  )
+  ) |>
   select(uuid, state, session, state_bill_id, date, action) |>
   group_by(uuid, state, session, state_bill_id) |>
   nest(history = c(date, action)) |>
