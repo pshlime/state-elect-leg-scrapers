@@ -176,3 +176,5 @@ cython_debug/
 
 # All output files ignored
 /output/*
+.RData
+.Rhistory
