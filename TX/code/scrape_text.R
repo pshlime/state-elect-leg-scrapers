@@ -73,14 +73,21 @@ get_file_path <- function(session, bill_id){
   FTP_PATH <- 'ftp://ftp.legis.state.tx.us/bills'
   # Parse bill number
   bill_type <- str_extract(bill_id, "^[A-Z]+")
-  # TODO: resolutions to HC and HJ
-  if(session == '74R' & bill_type == 'HCR'){bill_type <- 'HC'}
+  bill_type <- case_match(
+    bill_type,
+    "HCR" ~ "HC",
+    "SCR" ~ "SC",
+    "HJR" ~ "HJ",
+    "SJR" ~ "SJ",
+    .default = bill_type
+  )
+
   bill_number <- as.numeric(str_extract(bill_id, "[0-9]+$"))
   
   start_bill <- floor((bill_number) / 100) * 100
   end_bill <- start_bill + 99
   
-  if(session == '74R' & bill_number < 100){
+  if(bill_number < 100){
     start_bill <- 1
     end_bill <- 99
   }
@@ -96,11 +103,15 @@ get_file_path <- function(session, bill_id){
     "HB" ~ "house_bills",
     "SB" ~ "senate_bills",
     "HJR" ~ "house_joint_resolutions",
+    "HJ" ~ "house_joint_resolutions",
     "SJR" ~ "senate_joint_resolutions",
+    "SJ" ~ "senate_joint_resolutions",
     "HR" ~ "house_resolutions",
     "SR" ~ "senate_resolutions",
     "HCR" ~ "house_concurrent_resolutions",
-    "SCR" ~ "senate_concurrent_resolutions"
+    "HC" ~ "house_concurrent_resolutions",
+    "SCR" ~ "senate_concurrent_resolutions",
+    "SC" ~ "senate_concurrent_resolutions"
   )
   
   
