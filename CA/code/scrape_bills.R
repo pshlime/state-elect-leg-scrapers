@@ -1,6 +1,6 @@
 ##################################################
 ## Project: State Election Legislation Scrapers
-## Script purpose: Scrape CA from Open States
+## Script purpose: Scrape CA
 ## Date: February 2025
 ## Author: Joe Loffredo
 ##################################################
