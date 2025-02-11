@@ -17,9 +17,9 @@ library(glue)
 library(threadr)
 library(RCurl)
 library(fs)
+library(googlesheets4)
 
-TEXT_OUTPUT_PATH <- '/Users/josephloffredo/MIT Dropbox/Joseph Loffredo/election_bill_text/data/texas'
-FTP_PATH <- 'ftp://ftp.legis.state.tx.us/bills'
+plan(multisession, workers = 11)
 
 # Functions
 clean_html <- function(html_content) {
@@ -70,12 +70,20 @@ retrieve_file_names <- function(session, bill_id){
 
 # Build path for downloading from FTP
 get_file_path <- function(session, bill_id){
+  FTP_PATH <- 'ftp://ftp.legis.state.tx.us/bills'
   # Parse bill number
   bill_type <- str_extract(bill_id, "^[A-Z]+")
+  # TODO: resolutions to HC and HJ
+  if(session == '74R' & bill_type == 'HCR'){bill_type <- 'HC'}
   bill_number <- as.numeric(str_extract(bill_id, "[0-9]+$"))
   
   start_bill <- floor((bill_number) / 100) * 100
   end_bill <- start_bill + 99
+  
+  if(session == '74R' & bill_number < 100){
+    start_bill <- 1
+    end_bill <- 99
+  }
   start_bill <- str_pad(start_bill, 5, pad = "0", side = "left")
   end_bill <- str_pad(end_bill, 5, pad = "0", side = "left")
   
@@ -106,6 +114,8 @@ get_file_path <- function(session, bill_id){
 
 # Download html files
 download_bill_text <- function(UUID, file_path){
+  TEXT_OUTPUT_PATH <- '/Users/josephloffredo/MIT Dropbox/Joseph Loffredo/election_bill_text/data/texas'
+  
   dir_create(glue("{TEXT_OUTPUT_PATH}/{UUID}"))
   file_name <- basename(file_path) |> str_remove_all(".htm$")
   # Create destination file name
@@ -136,6 +146,8 @@ download_bill_text <- function(UUID, file_path){
 }
 
 process_bill_text <- function(UUID, session, file_path){
+  TEXT_OUTPUT_PATH <- '/Users/josephloffredo/MIT Dropbox/Joseph Loffredo/election_bill_text/data/texas'
+  
   file_name <- basename(file_path) |> str_replace_all(c("_raw.htm$" = "", "_raw.HTM$"=""))
   processed_html_dest_file <- glue("{TEXT_OUTPUT_PATH}/{UUID}/{file_name}_html.txt")
   processed_plain_dest_file <- glue("{TEXT_OUTPUT_PATH}/{UUID}/{file_name}_plain.txt")
@@ -205,3 +217,35 @@ scrape_text <- function(UUID, session = NA, bill_number = NA){
   
 }
 
+# Build list of UUIDs
+vrleg_master_file <- readRDS("~/Desktop/GitHub/election-roll-call/bills/vrleg_master_file.rds")
+gs_tx_list <- googlesheets4::read_sheet('1k2BT8QfSLm47n_vTf6yDoaoeq0zxDyXQ9ExGTSw7M_c') |> janitor::clean_names()
+
+gs_tx_list <- gs_tx_list |> 
+  mutate(
+    bill_type = str_extract(bill_number, "^[A-Z]+"),
+    bill_number_formatted = str_extract(bill_number, "[0-9]+$"),
+    bill_type = case_match(
+      bill_type,
+      "SB" ~ "S",
+      "HB" ~ "H",
+      .default = bill_type
+    ),
+    year = case_match(
+      session,
+      "74R" ~ "1995",
+      "74R" ~ "1996",
+      "75R" ~ "1997",
+      "75R" ~ "1998",
+      "76R" ~ "1999",
+      "76R" ~ "2000"
+    ),
+    UUID = glue("TX{year}{bill_type}{bill_number_formatted}")
+  ) |> pull(UUID)
+
+tx_master <- vrleg_master_file |> filter(STATE == 'TX' & YEAR %in% c(1995:2014)) |> pull(UUID)
+
+already_processed <- dir_ls('/Users/josephloffredo/MIT Dropbox/Joseph Loffredo/election_bill_text/data/texas') |> basename()
+bills_to_process <- c(gs_tx_list, tx_master) |> unique() |> setdiff(already_processed)
+
+future_map(bills_to_process, scrape_text)
