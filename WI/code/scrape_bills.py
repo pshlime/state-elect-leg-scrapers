@@ -10,22 +10,31 @@ from lxml import html
 
 BASE_URL = "https://docs.legis.wisconsin.gov/"
 
-def scrape_bill(uuid, state, state_bill_id, session):
-    metadata, link = scrape_bill_metadata(uuid, state, state_bill_id, session)
-    append_to_csv(uuid, session, state_bill_id, link)
+motion_classifiers = {
+    "(Assembly|Senate)( substitute)? amendment": "amendment",
+    "Report (passage|concurrence)": "passage",
+    "Report (adoption|introduction and adoption) of Senate( Substitute)? Amendment": "amendment",
+    "Report Assembly( Substitute)? Amendment": "amendment",
+    "Read a third time": "passage",
+    "Adopted": "passage",
+}
 
-def scrape_bill_metadata(uuid, state, state_bill_id, session):
-    bill_json_url = (
+def scrape_bill(uuid, state, state_bill_id, session):
+    bill_url = (
         "https://docs.legis.wisconsin.gov/{}/proposals/{}".format(session, state_bill_id)
     )
-
-    response = requests.get(bill_json_url)
+    response = requests.get(bill_url)
     tree = html.fromstring(response.content)
 
-    bill_description = tree.xpath("//div[@class='box-content']/div/p//text()")
+    metadata, link = scrape_bill_metadata(uuid, state, state_bill_id, session, tree, bill_url)
+    #append_to_csv(uuid, session, state_bill_id, link)
+    scrape_bill_sponsors(uuid, state, state_bill_id, session, tree)
+
+def scrape_bill_metadata(uuid, state, state_bill_id, session, page, page_url):
+    bill_description = page.xpath("//div[@class='box-content']/div/p//text()")
     bill_description_clean = bill_description[-1].strip().capitalize()
 
-    history = tree.xpath("//div[@class='propHistory']/table[@class='history']/tr/td[@class='entry']//text()")
+    history = page.xpath("//div[@class='propHistory']/table[@class='history']/tr/td[@class='entry']//text()")
     last_status = history[-1]
 
     bill_metadata = {
@@ -36,10 +45,10 @@ def scrape_bill_metadata(uuid, state, state_bill_id, session):
         "title": 'NA',
         "description": bill_description_clean,
         "status": last_status,
-        "state_url": bill_json_url,
+        "state_url": page_url,
     }
 
-    links = tree.xpath("//div[@class='propLinks noprint']/ul/li/p/span/a")
+    links = page.xpath("//div[@class='propLinks noprint']/ul/li/p/span/a")
 
     for link in links:
         text = link.xpath("./text()")[0]
@@ -50,15 +59,54 @@ def scrape_bill_metadata(uuid, state, state_bill_id, session):
 
     return bill_metadata, url
 
-def scrape_bill_history(uuid, state, state_bill_id, session):
-    bill_json_url = (
-        "https://docs.legis.wisconsin.gov/{}/proposals/{}".format(session, state_bill_id)
-    )
+def scrape_bill_sponsors(uuid, state, state_bill_id, session, page):
+    sponsors = page.xpath("//div[@class='propHistory']/table[@class='history']/tr/td[@class='entry']//text()")[0]
 
-    response = requests.get(bill_json_url)
-    tree = html.fromstring(response.content)
+    if ";" in sponsors:
+        lines = sponsors.split(";")
+    else:
+        lines = [sponsors]
 
-    history = tree.xpath("//div[@class='propHistory']/table[@class='history']/tr")
+    sponsor_list = []
+    for line in lines:
+        match = re.match(
+                    "(Introduced|cosponsored|Cosponsored) by (?:joint )?(Senator|Representative|committee|Joint Legislative Council|Law Revision Committee)s?(.*)",
+                    line.strip(),
+                )
+
+        type, _, people = match.groups()
+
+        if type == "Introduced":
+            sponsor_type = "sponsor"
+        elif type == "Cosponsored" or type == "cosponsored":
+            sponsor_type = "cosponsor"
+
+        for r in re.split(r"\sand\s|\,", people):
+            if r.strip():
+                sponsor_list.append({
+                    "sponsor_name": r.strip().rstrip('.'),
+                    "sponsor_type": sponsor_type,
+                })
+
+    sponsor_data = {
+        "uuid": uuid,
+        "state": state,
+        "session": session,
+        "state_bill_id": state_bill_id,
+        "sponsors": sponsor_list
+    }
+
+    return sponsor_data
+
+def scrape_bill_history(uuid, state, state_bill_id, session, page):
+    # bill_json_url = (
+    #     "https://docs.legis.wisconsin.gov/{}/proposals/{}".format(session, state_bill_id)
+    # )
+
+    # response = requests.get(bill_json_url)
+    # tree = html.fromstring(response.content)
+
+    history = page.xpath("//div[@class='propHistory']/table[@class='history']/tr")
 
     actions = []
     for event in history:
@@ -86,8 +134,6 @@ def scrape_bill_history(uuid, state, state_bill_id, session):
         "history": actions
     }
 
-    print(bill_history_data)
-
     return bill_history_data
 
 def append_to_csv(uuid, session, bill_number, link):
@@ -109,4 +155,4 @@ if __name__ == "__main__":
     test_bill_id = "SB125"
     test_session = "1995"
 
-    scrape_bill_history(test_uuid, test_state, test_bill_id, test_session)
+    scrape_bill(test_uuid, test_state, test_bill_id, test_session)
