@@ -2,6 +2,7 @@
 import requests
 from datetime import datetime
 import re
+import json
 
 import csv
 import os
@@ -27,8 +28,14 @@ def scrape_bill(uuid, state, state_bill_id, session):
     tree = html.fromstring(response.content)
 
     metadata, link = scrape_bill_metadata(uuid, state, state_bill_id, session, tree, bill_url)
-    #append_to_csv(uuid, session, state_bill_id, link)
-    scrape_bill_sponsors(uuid, state, state_bill_id, session, tree)
+    # append_to_csv(uuid, session, state_bill_id, link)
+    # write_file(uuid, "bill_metadata", metadata)
+
+    # sponsors_data = scrape_bill_sponsors(uuid, state, state_bill_id, session, tree)
+    # write_file(uuid, "sponsors", sponsors_data)
+
+    # history_data = scrape_bill_history(uuid, state, state_bill_id, session, tree)
+    # write_file(uuid, "bill_history", history_data)
 
 def scrape_bill_metadata(uuid, state, state_bill_id, session, page, page_url):
     bill_description = page.xpath("//div[@class='box-content']/div/p//text()")
@@ -148,6 +155,9 @@ def append_to_csv(uuid, session, bill_number, link):
 
         writer.writerow([uuid, session, bill_number, link])
 
+def write_file(file_name, directory, data):
+    with open(f'AZ/output/{directory}/{file_name}.json', 'w') as f:
+        json.dump(data, f, indent=4)
 
 if __name__ == "__main__":
     test_uuid = "WI1995AB694"
