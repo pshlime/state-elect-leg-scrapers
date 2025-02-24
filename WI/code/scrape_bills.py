@@ -8,6 +8,8 @@ import csv
 import os
 
 from lxml import html
+from dotenv import load_dotenv
+from openai import OpenAI
 
 BASE_URL = "https://docs.legis.wisconsin.gov/"
 
@@ -27,7 +29,10 @@ def scrape_bill(uuid, state, state_bill_id, session):
     response = requests.get(bill_url)
     tree = html.fromstring(response.content)
 
-    scrape_votes(uuid, state, state_bill_id, session, tree)
+    for voting in scrape_votes(uuid, state, state_bill_id, session, tree):
+        voting_data, date = voting
+
+        file_name = "{}_{}".format(uuid, date)
 
     metadata, link = scrape_bill_metadata(uuid, state, state_bill_id, session, tree, bill_url)
     # append_to_csv(uuid, session, state_bill_id, link)
@@ -151,9 +156,18 @@ def scrape_votes(uuid, state, state_bill_id, session, page):
             if re.match(regex, event_description):
                 reference = event.xpath("./td[@class='journal noprint']/a/@href")[0]
 
-                voting_events.add(reference)
+                house = event.xpath("./td[@class='date']/abbr/text()")[0][0]
 
-    for voting_event in voting_events:
+                date = event.xpath("./td[@class='date']/text()")[0].strip()
+                date_object = datetime.strptime(date, "%m/%d/%Y")
+                formatted_date = date_object.strftime("%Y-%m-%d")
+
+                voting_events.add((reference, formatted_date, house))
+
+    questions = set()
+    vote_events = []
+
+    for voting_event, date, chamber in voting_events:
         url = voting_event
         response = requests.get(url)
         page = html.fromstring(response.content)
@@ -176,11 +190,32 @@ def scrape_votes(uuid, state, state_bill_id, session, page):
                 file.write(present+ "\n" + text)
                 file.close()
 
-                scrapeWithOpenAI(state_bill_id, file)
-                # os.remove(f"{voting_event[-4:]}.txt")
+                data = scrapeWithOpenAI(state_bill_id, f"{voting_event[-4:]}.txt")
+
+                for event in data:
+                    if event['description'] not in questions:
+                        vote_event = {
+                            "uuid": uuid,
+                            "state": state,
+                            "session": session,
+                            "state_bill_id": state_bill_id,
+                            "chamber": chamber,
+                            "date": date,
+                            "description": event['description'],
+                            "yeas": event['yeas'],
+                            "nays": event['nays'],
+                            "other": event['other'],
+                            "roll_call": event['roll_call']
+                        }
+
+                        vote_events.append((vote_event, date))
+
+                os.remove(f"{voting_event[-4:]}.txt")
 
             else:
-                raise TypeError("Present member found")
+                raise TypeError("Present member not found")
+
+    return vote_events
 
 def append_to_csv(uuid, session, bill_number, link):
     filename = "bills.csv"
@@ -198,36 +233,105 @@ def write_file(file_name, directory, data):
     with open(f'AZ/output/{directory}/{file_name}.json', 'w') as f:
         json.dump(data, f, indent=4)
 
-def scrapeWithOpenAI(bill_id, file):
+def scrapeWithOpenAI(bill_id, file_path):
     congress = {
         "H": "House",
         "S": "Senate",
         "A": "Assembly",
     }
+
+    with open(file_path, "r", encoding="utf-8") as file:
+        file_content = file.read()
+
     prompt = f"""Extract all voting-related questions for {congress[bill_id[0]]} Bill {bill_id[2:]} ({bill_id}) from this text.
-    For each question that resulted in 'Motion carried' or includes recorded votes, return the following structured information:
 
-    - The exact question text.
-    - The full list of 'Ayes': If 'Motion carried' is present without explicit votes, assume all present members voted "Aye."
-    If a roll-call vote is recorded, use the provided list.
-    - The full list of 'Noes' (if applicable).
-    - The list of absent or not voting members (if applicable).
-    - Confirm whether the motion was carried.
-    - At the beginning of the response, provide the full list of all present members at the time of voting,
-    labeled as 'All Present Members.' Do not repeat this list under each question.
+    {file_content}
 
-    The output should be structured as follows:
+For each question that resulted in 'Motion carried' or includes recorded votes, return the following structured information:
 
-    All Present Members: [List of all names]
+- The exact question text.
+- The full list of 'Ayes': If 'Motion carried' is present without explicit votes, assume all present members voted "Aye."
+If a roll-call vote is recorded, use the provided list.
+- The full list of 'Noes' (if applicable).
+- The list of absent or not voting members (if applicable).
 
-    [Question]
-    Ayes: [List of names]
-    Noes: [List of names, if applicable]
-    Absent or not voting: [List of names, if applicable]
-    Motion carried.
-    """
+### **Expected JSON Output Format:**
+```json
+{{
+  "votes": [
+    {{
+      "question": "Exact question text",
+      "ayes": ["Name1", "Name2", ...],
+      "noes": ["NameX", "NameY", ...],
+      "absent_or_not_voting": ["NameZ", ...],
+    }},
+    ...
+  ]
+}}
+"""
+    load_dotenv()
+    OPENAI_APIKEY = os.getenv('OPENAI_APIKEY')
+    client = OpenAI(api_key=OPENAI_APIKEY)
 
-    print(prompt)
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        temperature=0,
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant that extracts structured voting information from text."},
+            {"role": "user", "content": prompt},
+        ]
+    )
+
+    raw_response = response.choices[0].message.content.strip()
+    cleaned_response = re.sub(r"```json|```", "", raw_response).strip()
+
+    try:
+        parsed_data = json.loads(cleaned_response)
+
+        questions = set()
+        voting_event = []
+        for vote in parsed_data["votes"]:
+            if vote["question"] not in questions:
+                questions.add(vote["question"])
+                voter = []
+
+                for name in vote["ayes"]:
+                    person = {
+                        "name": name,
+                        "response": "Yea"
+                    }
+                    voter.append(person)
+
+                for name in vote["noes"]:
+                    person = {
+                        "name": name,
+                        "response": "Nay"
+                    }
+
+                    voter.append(person)
+
+                for name in vote["absent_or_not_voting"]:
+                    person = {
+                        "name": name,
+                        "response": "Absent"
+                    }
+
+                    voter.append(person)
+
+                event = {
+                    "description": vote["question"],
+                    "yeas": len(vote["ayes"]),
+                    "nays": len(vote["noes"]),
+                    "other": len(vote["absent_or_not_voting"]),
+                    "roll_call": voter
+                }
+
+                voting_event.append(event)
+
+        return voting_event
+
+    except json.JSONDecodeError:
+        print("Still not valid JSON. Raw output:", cleaned_response)
 
 if __name__ == "__main__":
     test_uuid = "WI1995AB694"
