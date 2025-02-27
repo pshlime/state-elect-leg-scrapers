@@ -29,20 +29,28 @@ def scrape_bill(uuid, state, state_bill_id, session):
     response = requests.get(bill_url)
     tree = html.fromstring(response.content)
 
+
+    date_events = {}
     for voting in scrape_votes(uuid, state, state_bill_id, session, tree):
         voting_data, date = voting
 
-        file_name = "{}_{}".format(uuid, date)
+        if date not in date_events:
+            date_events[date] = 0
+
+        file_name = "{}_{}_{}".format(uuid, date, date_events[date])
+        date_events[date] += 1
+
+        write_file(file_name, "votes", voting_data)
 
     metadata, link = scrape_bill_metadata(uuid, state, state_bill_id, session, tree, bill_url)
-    # append_to_csv(uuid, session, state_bill_id, link)
-    # write_file(uuid, "bill_metadata", metadata)
+    append_to_csv(uuid, session, state_bill_id, link)
+    write_file(uuid, "bill_metadata", metadata)
 
-    # sponsors_data = scrape_bill_sponsors(uuid, state, state_bill_id, session, tree)
-    # write_file(uuid, "sponsors", sponsors_data)
+    sponsors_data = scrape_bill_sponsors(uuid, state, state_bill_id, session, tree)
+    write_file(uuid, "sponsors", sponsors_data)
 
-    # history_data = scrape_bill_history(uuid, state, state_bill_id, session, tree)
-    # write_file(uuid, "bill_history", history_data)
+    history_data = scrape_bill_history(uuid, state, state_bill_id, session, tree)
+    write_file(uuid, "bill_history", history_data)
 
 def scrape_bill_metadata(uuid, state, state_bill_id, session, page, page_url):
     bill_description = page.xpath("//div[@class='box-content']/div/p//text()")
@@ -178,7 +186,7 @@ def scrape_votes(uuid, state, state_bill_id, session, page):
 
             full_page_url = ""
             for link in page.xpath("//a//@href"):
-                if re.match("^/1995/related/journals/assembly/[^/.]+$", link):
+                if re.match("^/1995/related/journals/(assembly|senate)/[^/.]+$", link):
                     full_page_url = link
 
             if full_page_url:
@@ -209,6 +217,7 @@ def scrape_votes(uuid, state, state_bill_id, session, page):
                         }
 
                         vote_events.append((vote_event, date))
+                        questions.add(event['description'])
 
                 os.remove(f"{voting_event[-4:]}.txt")
 
@@ -230,7 +239,7 @@ def append_to_csv(uuid, session, bill_number, link):
         writer.writerow([uuid, session, bill_number, link])
 
 def write_file(file_name, directory, data):
-    with open(f'AZ/output/{directory}/{file_name}.json', 'w') as f:
+    with open(f'./WI/output/{directory}/{file_name}.json', 'w') as f:
         json.dump(data, f, indent=4)
 
 def scrapeWithOpenAI(bill_id, file_path):
@@ -313,7 +322,7 @@ If a roll-call vote is recorded, use the provided list.
                 for name in vote["absent_or_not_voting"]:
                     person = {
                         "name": name,
-                        "response": "Absent"
+                        "response": "NV"
                     }
 
                     voter.append(person)
@@ -334,9 +343,9 @@ If a roll-call vote is recorded, use the provided list.
         print("Still not valid JSON. Raw output:", cleaned_response)
 
 if __name__ == "__main__":
-    test_uuid = "WI1995AB694"
+    test_uuid = "WI1995SB125"
     test_state = "WI"
-    test_bill_id = "AB330"
+    test_bill_id = "SB125"
     test_session = "1995"
 
     scrape_bill(test_uuid, test_state, test_bill_id, test_session)
