@@ -239,8 +239,12 @@ def append_to_csv(uuid, session, bill_number, link):
         writer.writerow([uuid, session, bill_number, link])
 
 def write_file(file_name, directory, data):
-    with open(f'./WI/output/{directory}/{file_name}.json', 'w') as f:
-        json.dump(data, f, indent=4)
+    output_dir = f'./WI/output/{directory}'
+    os.makedirs(output_dir, exist_ok=True)
+
+    file_path = os.path.join(output_dir, f"{file_name}.json")
+    with open(file_path, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=4, ensure_ascii=False)
 
 def scrapeWithOpenAI(bill_id, file_path):
     congress = {
@@ -252,17 +256,28 @@ def scrapeWithOpenAI(bill_id, file_path):
     with open(file_path, "r", encoding="utf-8") as file:
         file_content = file.read()
 
-    prompt = f"""Extract all voting-related questions for {congress[bill_id[0]]} Bill {bill_id[2:]} ({bill_id}) from this text.
+    prompt = f"""Extract all voting-related actions for {congress[bill_id[0]]} Bill {bill_id[2:]} ({bill_id}) from this text.
 
-    {file_content}
+{file_content}
 
-For each question that resulted in 'Motion carried' or includes recorded votes, return the following structured information:
+For each case where:
+- A question resulted in 'Motion carried' or includes recorded votes, OR
+- The bill was "Read for a third time and passed"
 
-- The exact question text.
-- The full list of 'Ayes': If 'Motion carried' is present without explicit votes, assume all present members voted "Aye."
+For each case where:
+
+A question resulted in 'Motion carried' or includes recorded votes, OR
+The bill was "Read for a third time and passed"
+Return the following structured information:
+
+If a question is present:
+The exact question text.
+If it states "Read for a third time and passed":
+Use "question": "Read for a third time and passed" to maintain consistency in the format.
+The full list of 'Ayes': If 'Motion carried', 'Read for a third time and passed' or 'Adopted' is present without explicit votes, assume all present members voted "Aye."
 If a roll-call vote is recorded, use the provided list.
-- The full list of 'Noes' (if applicable).
-- The list of absent or not voting members (if applicable).
+The full list of 'Noes' (if applicable).
+The list of absent or not voting members (if applicable).
 
 ### **Expected JSON Output Format:**
 ```json
@@ -270,9 +285,9 @@ If a roll-call vote is recorded, use the provided list.
   "votes": [
     {{
       "question": "Exact question text",
-      "ayes": ["Name1", "Name2", ...],
-      "noes": ["NameX", "NameY", ...],
-      "absent_or_not_voting": ["NameZ", ...],
+      "ayes": ["Name1", "Name2", ...],  // Ensure full accuracy in this list
+      "noes": ["NameX", "NameY", ...],  // Ensure no omissions here
+      "absent_or_not_voting": ["NameZ", ...]  // Ensure all are accounted for
     }},
     ...
   ]
@@ -345,7 +360,7 @@ If a roll-call vote is recorded, use the provided list.
 if __name__ == "__main__":
     test_uuid = "WI1995SB125"
     test_state = "WI"
-    test_bill_id = "SB125"
+    test_bill_id = "AB330"
     test_session = "1995"
 
     scrape_bill(test_uuid, test_state, test_bill_id, test_session)
