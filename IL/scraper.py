@@ -12,7 +12,7 @@ def write_json(data, folder, filename):
 # Base function to scrape bill data
 def scrape_bill(uuid, state_bill_id, session):
   # Set base URL depending on session and state
-  base_url = f"https://www.ilga.gov/legislation/legisnet{session}/{state_bill_id}.html"
+  base_url = f"https://www.ilga.gov/legislation/legisnet{session}/{state_bill_id}.html" # edit this link
 
   # Step 1: Scrape bill metadata (description, title, etc.)
   # Step 2: Scrape sponsors
