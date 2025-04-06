@@ -2,6 +2,12 @@ import json
 import requests
 from bs4 import BeautifulSoup
 import datetime
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
 def get_bill_metadata_1997_2001(session_year, state_bill_id):
     """
@@ -17,7 +23,6 @@ def get_bill_metadata_1997_2001(session_year, state_bill_id):
     header = header_elt.get_text(strip=True).split() if header_elt else None
     split_idx = header.index('--')
     title = " ".join(header[2:split_idx])
-    sponsor = " ".join(header[split_idx+1:])
 
     bill_metadata = {
         "uuid": f"UT{session_year}{state_bill_id}",
@@ -30,7 +35,7 @@ def get_bill_metadata_1997_2001(session_year, state_bill_id):
         "state_url": url
     }
     
-    return bill_metadata,sponsor
+    return bill_metadata
 
 def get_bill_sponsors_1997_2001(session_year, state_bill_id):
     metadata = get_bill_metadata_1997_2001(session_year, state_bill_id)
@@ -38,45 +43,6 @@ def get_bill_sponsors_1997_2001(session_year, state_bill_id):
     sponsor_url = f"https://le.utah.gov/~{session_year}/reports/sponbill.htm#C"
     to_scrape = requests.get(sponsor_url)
     soup = BeautifulSoup(to_scrape.content, 'html.parser')
-    # sponsors = soup.select('h4')
-    # print(sponsors)
-    # sponsor_data = {}
-
-    #CODE THAT WOULD WORK IF NOT DYNAMICALLY GENERATED
-    #---------------------------------------------------------------------------------------------------
-    # for sponsor in sponsors:
-    #     sponsor_name = sponsor.get_text(strip=True)
-    #     bills = []
-
-    #     # Find the next element after the sponsor's name
-    #     ul_element = sponsor.find_next_sibling('ul')
-    
-    #     if ul_element:
-    #         # Find all <a> elements inside the <ul>
-    #         bill_links = ul_element.find_all('a')
-    #         for bill in bill_links:
-    #             bill_number = bill.get_text(strip=True).strip("[]")  # Remove brackets from bill number
-    #             bills.append(bill_number)
-
-    #     # Only add sponsors with associated bills
-    #     if bills:
-    #         sponsor_data[sponsor_name] = bills
-
-    # # Print the results
-    # for sponsor, bills in sponsor_data.items():
-    #     print(f"{sponsor}: {', '.join(bills)}")
-
-    # print("\n\n",sponsor_data,"\n\n")
-    #---------------------------------------------------------------------------------------------------
-
-    #DEALING WITH DYNAMIC GENERATION THROUGH SELENIUM ATTEMPT
-
-    from selenium import webdriver
-    from selenium.webdriver.chrome.service import Service
-    from webdriver_manager.chrome import ChromeDriverManager
-    from selenium.webdriver.common.by import By
-    from selenium.webdriver.support.ui import WebDriverWait
-    from selenium.webdriver.support import expected_conditions as EC
 
     # Set up Selenium with Chrome
     options = webdriver.ChromeOptions()
@@ -204,8 +170,9 @@ def collect_bill_data_1997_2001(uuid, session_year, state_bill_id):
     Base function to collect data for sessions 1997-2001.
     Returns four JSON objects: bill_metadata, sponsors, bill_history, and votes.
     """
-    meta = get_bill_metadata_1997_2001(session_year, state_bill_id)
-    
+    bill_meta_data = get_bill_metadata_1997_2001(session_year, state_bill_id)
+    write_file(uuid, "bill_metadata", bill_meta_data)
+
     sponsors = get_bill_sponsors_1997_2001(session_year, state_bill_id)
 
     history_data = get_bill_history_1997_2001(session_year, state_bill_id)    
@@ -215,8 +182,8 @@ def collect_bill_data_1997_2001(uuid, session_year, state_bill_id):
         "state": "UT",
         "session": session_year,
         "state_bill_id": state_bill_id,
-        "date":history_data[0],
-        "action":history_data[1]
+        "date": history_data[0],
+        "action": history_data[1]
     }
         
     return {
@@ -224,6 +191,10 @@ def collect_bill_data_1997_2001(uuid, session_year, state_bill_id):
         "sponsors": sponsors,
         "bill_history": bill_history,
     }
+
+def write_file(file_name, directory, data):
+    with open(f'output/{directory}/{file_name}.json', 'w') as f:
+        json.dump(data, f, indent=4)
 
 # Example usage:
 if __name__ == "__main__":
