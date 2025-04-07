@@ -2,14 +2,13 @@ import json
 import requests
 from bs4 import BeautifulSoup
 import datetime
+from dateutil.parser import parse
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 
-def get_bill_metadata_1997_2001(session_year, state_bill_id):
+def get_bill_metadata_1997_2001(uuid, session_year, state_bill_id):
     """
     Retrieves the bill title and sponsor from the bill metadata page.
     """
@@ -23,9 +22,10 @@ def get_bill_metadata_1997_2001(session_year, state_bill_id):
     header = header_elt.get_text(strip=True).split() if header_elt else None
     split_idx = header.index('--')
     title = " ".join(header[2:split_idx])
+    sponsor = " ".join(header[split_idx+1:])
 
     bill_metadata = {
-        "uuid": f"UT{session_year}{state_bill_id}",
+        "uuid": uuid,
         "state": "UT",
         "session": session_year,  # For these sessions, we use the session year directly.
         "state_bill_id": state_bill_id,
@@ -34,73 +34,22 @@ def get_bill_metadata_1997_2001(session_year, state_bill_id):
         "status": None,  # Could be derived from history if needed.
         "state_url": url
     }
-    
-    return bill_metadata
 
-def get_bill_sponsors_1997_2001(session_year, state_bill_id):
-    metadata = get_bill_metadata_1997_2001(session_year, state_bill_id)
-
-    sponsor_url = f"https://le.utah.gov/~{session_year}/reports/sponbill.htm#C"
-    to_scrape = requests.get(sponsor_url)
-    soup = BeautifulSoup(to_scrape.content, 'html.parser')
-
-    # Set up Selenium with Chrome
-    options = webdriver.ChromeOptions()
-    options.add_argument("--headless")  # Runs Chrome in headless mode (no UI)
-    options.add_argument("--disable-gpu")
-    options.add_argument("--no-sandbox")
-
-    # Initialize the WebDriver
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
-
-    # URL of the Utah legislature page
-    url = "https://le.utah.gov/~1997/reports/sponbill.htm"
-    driver.get(url)
-
-    # Wait for elements to load
-    WebDriverWait(driver, 10).until(EC.presence_of_all_elements_located((By.TAG_NAME, "h4")))
-
-    # Find all sponsor names (h4 elements)
-    sponsor_elements = driver.find_elements(By.TAG_NAME, "h4")
-
-    sponsor_data = {}
-
-    for sponsor in sponsor_elements:
-        sponsor_name = sponsor.text.strip()
-        bills = []
-
-        # Get the next <ul> sibling (which contains bill <li> elements)
-        ul_element = sponsor.find_element(By.XPATH, "following-sibling::ul")
-
-        if ul_element:
-            # Find all <a> elements inside the <ul>
-            bill_links = ul_element.find_elements(By.TAG_NAME, "a")
-            for bill in bill_links:
-                bill_number = bill.text.strip("[]")  # Remove brackets
-                bills.append(bill_number)
-
-        # Only add sponsors with bills
-        if bills:
-            sponsor_data[sponsor_name] = bills
-
-    # Close the browser session
-    driver.quit()
-
-    # Print the results
-    for sponsor, bills in sponsor_data.items():
-        print(f"{sponsor}: {', '.join(bills)}")
-
-
-    sponsors = {
-        "uuid": metadata[0]["uuid"],
-        "state": metadata[0]["state"],
+    sponsors = []
+    sponsors.append({
+        "sponsor_name": sponsor,
+        "sponsor_type": "sponsor",
+    })
+    sponsors_output = {
+        "uuid": uuid,
+        "state": "UT",
         "session": session_year,
         "state_bill_id": state_bill_id,
-        "sponsors": []
-    }
-    return sponsors
+        "sponsors": sponsors
 
-from dateutil.parser import parse
+    }
+    
+    return bill_metadata, sponsors_output
 
 def is_date(string, fuzzy=False):
     """
@@ -165,15 +114,14 @@ def get_bill_history_1997_2001(session_year, state_bill_id):
     return date,action
 
 
-def collect_bill_data_1997_2001(uuid, session_year, state_bill_id):
+def collect_bill_data_1997_2001(uuid, state_bill_id, session_year):
     """
     Base function to collect data for sessions 1997-2001.
     Returns four JSON objects: bill_metadata, sponsors, bill_history, and votes.
     """
-    bill_meta_data = get_bill_metadata_1997_2001(session_year, state_bill_id)
+    bill_meta_data, sponsors = get_bill_metadata_1997_2001(uuid, session_year, state_bill_id)
     write_file(uuid, "bill_metadata", bill_meta_data)
-
-    sponsors = get_bill_sponsors_1997_2001(session_year, state_bill_id)
+    write_file(uuid, "sponsors", sponsors)
 
     history_data = get_bill_history_1997_2001(session_year, state_bill_id)    
     
@@ -185,18 +133,36 @@ def collect_bill_data_1997_2001(uuid, session_year, state_bill_id):
         "date": history_data[0],
         "action": history_data[1]
     }
-        
-    return {
-        "bill_metadata": meta,
-        "sponsors": sponsors,
-        "bill_history": bill_history,
-    }
 
 def write_file(file_name, directory, data):
     with open(f'output/{directory}/{file_name}.json', 'w') as f:
         json.dump(data, f, indent=4)
 
+def setup_driver():
+    # Set up Chrome options
+    chrome_options = Options()
+
+    # Specify the download directory and enable automatic downloads
+    prefs = {
+        "download.prompt_for_download": False,
+        "download.directory_upgrade": True,
+        "safebrowsing.enabled": True
+    }
+    chrome_options.add_experimental_option("prefs", prefs)
+
+    # Add headless options (if needed)
+    chrome_options.add_argument("--headless")  # Runs Chrome in headless mode (no UI)
+    chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("--no-sandbox")
+
+    # Initialize the Selenium webdriver with Chrome options
+    # Using webdriver_manager to handle the ChromeDriver automatically
+    service = Service(ChromeDriverManager().install())  # This will install and manage the ChromeDriver
+    driver = webdriver.Chrome(service=service, options=chrome_options)
+
+    return driver
+
 # Example usage:
 if __name__ == "__main__":
     # For example, collecting data for HB0104 from 1997.
-    bill_data = collect_bill_data_1997_2001("UT1997HB104", "1997", "HB0104")
+    bill_data = collect_bill_data_1997_2001("UT1997HB104", "HB0104", "1997")
