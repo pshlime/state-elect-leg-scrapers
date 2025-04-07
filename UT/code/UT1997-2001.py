@@ -45,7 +45,7 @@ def get_bill_metadata_1997_2001(uuid, session_year, state_bill_id):
         "state": "UT",
         "session": session_year,
         "state_bill_id": state_bill_id,
-        "sponsors": sponsors
+        "sponsors": [sponsors]
 
     }
     
