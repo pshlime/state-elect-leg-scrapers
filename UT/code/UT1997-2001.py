@@ -4,39 +4,11 @@ from bs4 import BeautifulSoup
 import datetime
 import re
 from dateutil.parser import parse
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-from webdriver_manager.chrome import ChromeDriverManager
 
 # Utility functions
 def write_file(file_name, directory, data):
     with open(f'output/{directory}/{file_name}.json', 'w') as f:
         json.dump(data, f, indent=4)
-
-def setup_driver():
-    # Set up Chrome options
-    chrome_options = Options()
-
-    # Specify the download directory and enable automatic downloads
-    prefs = {
-        "download.prompt_for_download": False,
-        "download.directory_upgrade": True,
-        "safebrowsing.enabled": True
-    }
-    chrome_options.add_experimental_option("prefs", prefs)
-
-    # Add headless options (if needed)
-    chrome_options.add_argument("--headless")  # Runs Chrome in headless mode (no UI)
-    chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("--no-sandbox")
-
-    # Initialize the Selenium webdriver with Chrome options
-    # Using webdriver_manager to handle the ChromeDriver automatically
-    service = Service(ChromeDriverManager().install())  # This will install and manage the ChromeDriver
-    driver = webdriver.Chrome(service=service, options=chrome_options)
-
-    return driver
 
 def is_date(string, fuzzy=False):
     """
