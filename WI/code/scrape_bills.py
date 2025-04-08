@@ -260,24 +260,23 @@ def scrapeWithOpenAI(bill_id, file_path):
 
 {file_content}
 
-For each case where:
+Identify each case where:
 - A question resulted in 'Motion carried' or includes recorded votes, OR
 - The bill was "Read for a third time and passed"
 
-For each case where:
+For each of these cases, return the following structured information:
 
-A question resulted in 'Motion carried' or includes recorded votes, OR
-The bill was "Read for a third time and passed"
-Return the following structured information:
+- The exact question text, if present.
+  If it states "Read for a third time and passed" with no explicit question, use:
+  `"question": "Read for a third time and passed"`
 
-If a question is present:
-The exact question text.
-If it states "Read for a third time and passed":
-Use "question": "Read for a third time and passed" to maintain consistency in the format.
-The full list of 'Ayes': If 'Motion carried', 'Read for a third time and passed' or 'Adopted' is present without explicit votes, assume all present members voted "Aye."
-If a roll-call vote is recorded, use the provided list.
-The full list of 'Noes' (if applicable).
-The list of absent or not voting members (if applicable).
+- The 'ayes' field:
+  - If the result was 'Motion carried', 'Read for a third time and passed', or 'Adopted' **without any explicit list of voters**, return `"ayes": "unanimous"`
+  - If a roll-call vote is recorded, return the full list of names under `"ayes"`
+
+- The full list of 'noes', if applicable.
+
+- The list of absent or not voting members, if applicable.
 
 ### **Expected JSON Output Format:**
 ```json
@@ -285,11 +284,16 @@ The list of absent or not voting members (if applicable).
   "votes": [
     {{
       "question": "Exact question text",
-      "ayes": ["Name1", "Name2", ...],  // Ensure full accuracy in this list
-      "noes": ["NameX", "NameY", ...],  // Ensure no omissions here
-      "absent_or_not_voting": ["NameZ", ...]  // Ensure all are accounted for
+      "ayes": "unanimous",
+      "noes": [],
+      "absent_or_not_voting": []
     }},
-    ...
+    {{
+      "question": "Another exact question",
+      "ayes": ["Name1", "Name2"],
+      "noes": ["NameX"],
+      "absent_or_not_voting": ["NameZ"]
+    }}
   ]
 }}
 """
@@ -319,38 +323,50 @@ The list of absent or not voting members (if applicable).
                 questions.add(vote["question"])
                 voter = []
 
-                for name in vote["ayes"]:
-                    person = {
-                        "name": name,
-                        "response": "Yea"
+                if type(vote["ayes"]) is list:
+                    for name in vote["ayes"]:
+                        person = {
+                            "name": name,
+                            "response": "Yea"
+                        }
+                        voter.append(person)
+
+                    for name in vote["noes"]:
+                        person = {
+                            "name": name,
+                            "response": "Nay"
+                        }
+
+                        voter.append(person)
+
+                    for name in vote["absent_or_not_voting"]:
+                        person = {
+                            "name": name,
+                            "response": "NV"
+                        }
+
+                        voter.append(person)
+
+
+                    event = {
+                        "description": vote["question"],
+                        "yeas": len(vote["ayes"]),
+                        "nays": len(vote["noes"]),
+                        "other": len(vote["absent_or_not_voting"]),
+                        "roll_call": voter
                     }
-                    voter.append(person)
 
-                for name in vote["noes"]:
-                    person = {
-                        "name": name,
-                        "response": "Nay"
+                    voting_event.append(event)
+                else:
+                    event = {
+                        "description": vote["question"],
+                        "yeas": "unanimous",
+                        "nays": 0,
+                        "other": 0,
+                        "roll_call": "unanimous"
                     }
 
-                    voter.append(person)
-
-                for name in vote["absent_or_not_voting"]:
-                    person = {
-                        "name": name,
-                        "response": "NV"
-                    }
-
-                    voter.append(person)
-
-                event = {
-                    "description": vote["question"],
-                    "yeas": len(vote["ayes"]),
-                    "nays": len(vote["noes"]),
-                    "other": len(vote["absent_or_not_voting"]),
-                    "roll_call": voter
-                }
-
-                voting_event.append(event)
+                    voting_event.append(event)
 
         return voting_event
 
