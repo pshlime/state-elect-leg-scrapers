@@ -22,6 +22,10 @@ motion_classifiers = {
     "Adopted": "passage",
 }
 
+load_dotenv()
+OPENAI_APIKEY = os.getenv('OPENAI_APIKEY')
+client = OpenAI(api_key=OPENAI_APIKEY)
+
 def scrape_bill(uuid, state, state_bill_id, session):
     bill_url = (
         "https://docs.legis.wisconsin.gov/{}/proposals/{}".format(session, state_bill_id)
@@ -194,11 +198,12 @@ def scrape_votes(uuid, state, state_bill_id, session, page):
                 full_page = html.fromstring(response.content)
                 present = "".join(full_page.xpath("//div[@class='qs_present_']//text()"))
 
-                file = open(f"{voting_event[-4:]}.txt", "w")
+                journal_page_filepath = f"WI/scratch/{voting_event[-4:]}.txt"
+                file = open(journal_page_filepath, "w")
                 file.write(present+ "\n" + text)
                 file.close()
 
-                data = scrapeWithOpenAI(state_bill_id, f"{voting_event[-4:]}.txt")
+                data = scrapeWithOpenAI(state_bill_id, journal_page_filepath)
 
                 for event in data:
                     if event['description'] not in questions:
@@ -219,7 +224,7 @@ def scrape_votes(uuid, state, state_bill_id, session, page):
                         vote_events.append((vote_event, date))
                         questions.add(event['description'])
 
-                os.remove(f"{voting_event[-4:]}.txt")
+                os.remove(journal_page_filepath)
 
             else:
                 raise TypeError("Present member not found")
@@ -227,7 +232,7 @@ def scrape_votes(uuid, state, state_bill_id, session, page):
     return vote_events
 
 def append_to_csv(uuid, session, bill_number, link):
-    filename = "bills.csv"
+    filename = "WI/scratch/bills.csv"
     file_exists = os.path.isfile(filename)
 
     with open(filename, mode="a", newline="") as file:
@@ -297,9 +302,6 @@ For each of these cases, return the following structured information:
   ]
 }}
 """
-    load_dotenv()
-    OPENAI_APIKEY = os.getenv('OPENAI_APIKEY')
-    client = OpenAI(api_key=OPENAI_APIKEY)
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
@@ -376,7 +378,7 @@ For each of these cases, return the following structured information:
 if __name__ == "__main__":
     test_uuid = "WI1995SB125"
     test_state = "WI"
-    test_bill_id = "AB330"
+    test_bill_id = "SB125"
     test_session = "1995"
 
     scrape_bill(test_uuid, test_state, test_bill_id, test_session)
