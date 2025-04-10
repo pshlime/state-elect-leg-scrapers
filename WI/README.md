@@ -29,3 +29,6 @@ Output Directories
 ```
 
 There is also a file `code/bills.csv` which contains all of the Bill Text with columns uuid, session, bill_number, and link
+
+## Additional notes
+Votes are scraped from the journal using GPT. If roll call was unanimous, then "yea" value is set to "unanimous". Remember that when working the vote data later to transform this to the number of members in the chamber -- it won't necessarily be accurate because we won't have a record of who was present, but it'll suffice. When creating an individual-level roll call vote table, retrieve these unanimous votes and assign "yea" to all.
