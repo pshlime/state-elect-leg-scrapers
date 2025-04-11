@@ -55,7 +55,57 @@ get_bill_metadata <- function(UUID, session, bill_number){
       state_url = state_url
     ) |> as.list() |> toJSON(auto_unbox = T, pretty = T) |> writeLines(glue("{OUTPUT_PATH}/bill_metadata/{UUID}.json"))
   } else {
-    message("error getting bill status")
+    message("error getting bill metadata")
+    return(NULL)
+  }
+  
+}
+
+get_sponsors <- function(UUID, session, bill_number){
+  # Extract metadata from GetLegislation
+  payload <- list(biennium = session, billId = bill_number)
+  
+  response <- POST(url = "https://wslwebservices.leg.wa.gov/LegislationService.asmx/GetSponsors", body = payload, encode = "form")
+  
+  if (status_code(response) == 200) {
+    sponsors <- content(response, as = "parsed")
+    sponsors_nodes <- xml_find_all(sponsors, "//d1:ArrayOfSponsor/d1:Sponsor", ns = xml_ns(sponsors))
+    sponsors <- as_list(sponsors_nodes)
+    
+    flatten_sponsor <- function(sponsor) {
+      list(
+        Id = sponsor$Id[[1]],
+        Name = sponsor$Name[[1]],
+        LongName = sponsor$LongName[[1]],
+        Agency = sponsor$Agency[[1]],
+        Acronym = sponsor$Acronym[[1]],
+        Type = sponsor$Type[[1]],
+        Order = sponsor$Order[[1]],
+        Phone = sponsor$Phone[[1]],
+        Email = sponsor$Email[[1]],
+        FirstName = sponsor$FirstName[[1]],
+        LastName = sponsor$LastName[[1]]
+      )
+    }
+    
+    sponsors_df <- map_dfr(sponsors, flatten_sponsor) |> mutate(Type = ifelse(Type == 'Primary', 'sponsor', 'cosponsor'))
+    
+    tibble(
+      uuid = UUID, 
+      state = 'WA', 
+      session = session, 
+      state_bill_id = bill_number, 
+      sponsor_name = sponsors_df$Name,
+      sponsor_type = sponsors_df$Type
+    ) |> 
+      group_by(uuid, state, session, state_bill_id) |>
+      nest(sponsors = c(sponsor_name, sponsor_type)) |>
+      ungroup() |>
+      as.list() |>
+      toJSON(pretty = T,auto_unbox = T) |> 
+      writeLines(glue("{OUTPUT_PATH}/sponsors/{UUID}.json"))
+    } else {
+    message("error getting sponsors")
     return(NULL)
   }
   
@@ -63,6 +113,7 @@ get_bill_metadata <- function(UUID, session, bill_number){
 
 scrape_bill <- function(UUID, session = NA, bill_number = NA){
   metadata <- get_bill_metadata()
+  sponsors <- get_sponsors()
 }
 
 session = '2021-22'
