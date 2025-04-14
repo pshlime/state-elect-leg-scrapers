@@ -8,7 +8,10 @@ def get_bill_metadata_1997_2001(session_year, state_bill_id):
     Retrieves the bill title and sponsor from the bill metadata page.
     """
     # Construct the URL for the bill's HTML page.
-    url = f"https://le.utah.gov/~{session_year}/htmdoc/hbillhtm/{state_bill_id}.htm"
+    if session_year == "1997":
+        url = f"https://le.utah.gov/~{session_year}/htmdoc/hbillhtm/{state_bill_id}.htm"
+    else:
+        url = f"https://le.utah.gov/~{session_year}/htmdoc/Hbillhtm/{state_bill_id}.htm"
     to_scrape = requests.get(url)
     soup = BeautifulSoup(to_scrape.content, 'html.parser')
     
@@ -38,99 +41,13 @@ def get_bill_sponsors_1997_2001(session_year, state_bill_id):
     sponsor_url = f"https://le.utah.gov/~{session_year}/reports/sponbill.htm#C"
     to_scrape = requests.get(sponsor_url)
     soup = BeautifulSoup(to_scrape.content, 'html.parser')
-    # sponsors = soup.select('h4')
-    # print(sponsors)
-    # sponsor_data = {}
-
-    #CODE THAT WOULD WORK IF NOT DYNAMICALLY GENERATED
-    #---------------------------------------------------------------------------------------------------
-    # for sponsor in sponsors:
-    #     sponsor_name = sponsor.get_text(strip=True)
-    #     bills = []
-
-    #     # Find the next element after the sponsor's name
-    #     ul_element = sponsor.find_next_sibling('ul')
-    
-    #     if ul_element:
-    #         # Find all <a> elements inside the <ul>
-    #         bill_links = ul_element.find_all('a')
-    #         for bill in bill_links:
-    #             bill_number = bill.get_text(strip=True).strip("[]")  # Remove brackets from bill number
-    #             bills.append(bill_number)
-
-    #     # Only add sponsors with associated bills
-    #     if bills:
-    #         sponsor_data[sponsor_name] = bills
-
-    # # Print the results
-    # for sponsor, bills in sponsor_data.items():
-    #     print(f"{sponsor}: {', '.join(bills)}")
-
-    # print("\n\n",sponsor_data,"\n\n")
-    #---------------------------------------------------------------------------------------------------
-
-    #DEALING WITH DYNAMIC GENERATION THROUGH SELENIUM ATTEMPT
-
-    from selenium import webdriver
-    from selenium.webdriver.chrome.service import Service
-    from webdriver_manager.chrome import ChromeDriverManager
-    from selenium.webdriver.common.by import By
-    from selenium.webdriver.support.ui import WebDriverWait
-    from selenium.webdriver.support import expected_conditions as EC
-
-    # Set up Selenium with Chrome
-    options = webdriver.ChromeOptions()
-    options.add_argument("--headless")  # Runs Chrome in headless mode (no UI)
-    options.add_argument("--disable-gpu")
-    options.add_argument("--no-sandbox")
-
-    # Initialize the WebDriver
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
-
-    # URL of the Utah legislature page
-    url = "https://le.utah.gov/~1997/reports/sponbill.htm"
-    driver.get(url)
-
-    # Wait for elements to load
-    WebDriverWait(driver, 10).until(EC.presence_of_all_elements_located((By.TAG_NAME, "h4")))
-
-    # Find all sponsor names (h4 elements)
-    sponsor_elements = driver.find_elements(By.TAG_NAME, "h4")
-
-    sponsor_data = {}
-
-    for sponsor in sponsor_elements:
-        sponsor_name = sponsor.text.strip()
-        bills = []
-
-        # Get the next <ul> sibling (which contains bill <li> elements)
-        ul_element = sponsor.find_element(By.XPATH, "following-sibling::ul")
-
-        if ul_element:
-            # Find all <a> elements inside the <ul>
-            bill_links = ul_element.find_elements(By.TAG_NAME, "a")
-            for bill in bill_links:
-                bill_number = bill.text.strip("[]")  # Remove brackets
-                bills.append(bill_number)
-
-        # Only add sponsors with bills
-        if bills:
-            sponsor_data[sponsor_name] = bills
-
-    # Close the browser session
-    driver.quit()
-
-    # Print the results
-    for sponsor, bills in sponsor_data.items():
-        print(f"{sponsor}: {', '.join(bills)}")
-
 
     sponsors = {
         "uuid": metadata[0]["uuid"],
         "state": metadata[0]["state"],
         "session": session_year,
         "state_bill_id": state_bill_id,
-        "sponsors": []
+        "sponsors": [metadata[1]]
     }
     return sponsors
 
@@ -171,6 +88,63 @@ def convert_to_date(date_str):
     return str_to_return
 
 
+# def get_bill_history_1997_2001(session_year, state_bill_id):
+#     """
+#     Retrieves the bill history from the status text file and extracts action dates,
+#     descriptions, and vote counts (if available).
+#     """
+#     # Construct the URL for the status text file.
+#     status_url = f"https://le.utah.gov/~{session_year}/status/hbillsta/{state_bill_id}.txt"
+    
+#     response = requests.get(status_url)
+#     text_data = response.text
+#     text_list = text_data.split()
+#     sponsor = get_bill_metadata_1997_2001(session_year, state_bill_id)[1]
+
+#     start = text_list.index(f"{sponsor[-2:]})")
+#     date = []
+#     action = []
+#     act = []
+
+#     body_types = {
+#         "H": "House",
+#         "S": "Senate"
+#     }
+#     action_types = {
+#         "FINAL": "Final Passage",
+#         "THIRD": "Third Reading",
+#         "SECOND": "Second Reading",
+#         "FIRST": "First Reading",
+#         "_STANDING": "STANDING",
+#     }
+
+
+
+#     for unit in text_list[start+1:]:
+#         if is_date(unit):
+#             date.append(convert_to_date(unit))
+#             if act:
+#                 action.append(" ".join(act[:-1])) #cuts off the last thing bc idk what it is
+#                 act=[]
+#         else:
+#            act.append(unit)
+    
+#     return date,action
+
+
+def get_action_type(action_types, actual_action):
+    action_type = ""
+    for type in action_types.split():
+        if type in actual_action:
+            if "read" in actual_action and "1st" in actual_action:
+                return "Introduced"
+            else:
+                action_type += type
+    if not action_type:
+        return "N/A"
+    return action_type
+            
+
 def get_bill_history_1997_2001(session_year, state_bill_id):
     """
     Retrieves the bill history from the status text file and extracts action dates,
@@ -178,6 +152,7 @@ def get_bill_history_1997_2001(session_year, state_bill_id):
     """
     # Construct the URL for the status text file.
     status_url = f"https://le.utah.gov/~{session_year}/status/hbillsta/{state_bill_id}.txt"
+    
     response = requests.get(status_url)
     text_data = response.text
     text_list = text_data.split()
@@ -187,11 +162,21 @@ def get_bill_history_1997_2001(session_year, state_bill_id):
     date = []
     action = []
     act = []
+
+    action_types = "Introduced Referred Passed Failed received Distributed"
+
     for unit in text_list[start+1:]:
         if is_date(unit):
             date.append(convert_to_date(unit))
             if act:
-                action.append(" ".join(act[:-1]))#cuts off the last thing bc idk what it is
+                action_body = "N/A"
+                actual_action = (" ".join(act[:-1])) #cuts off the last thing bc idk what it is
+                if "House" in actual_action:
+                    action_body = "House"
+                elif "Senate" in actual_action:
+                    action_body = "Senate"
+                action_type = get_action_type(action_types,actual_action)
+                action.append(f"{action_body} : {action_type} - {actual_action}")
                 act=[]
         else:
            act.append(unit)
@@ -204,10 +189,10 @@ def collect_bill_data_1997_2001(uuid, session_year, state_bill_id):
     Base function to collect data for sessions 1997-2001.
     Returns four JSON objects: bill_metadata, sponsors, bill_history, and votes.
     """
-    meta = get_bill_metadata_1997_2001(session_year, state_bill_id)
+    meta = get_bill_metadata_1997_2001(session_year, state_bill_id)[0]
     
     sponsors = get_bill_sponsors_1997_2001(session_year, state_bill_id)
-
+    
     history_data = get_bill_history_1997_2001(session_year, state_bill_id)    
     
     bill_history = {
@@ -228,4 +213,5 @@ def collect_bill_data_1997_2001(uuid, session_year, state_bill_id):
 # Example usage:
 if __name__ == "__main__":
     # For example, collecting data for HB0104 from 1997.
-    bill_data = collect_bill_data_1997_2001("UT1997HB104", "1997", "HB0104")
+    bill_data = collect_bill_data_1997_2001("UT2000HB104", "2000", "HB0008")
+    print(bill_data["bill_history"])
