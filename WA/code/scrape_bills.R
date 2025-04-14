@@ -193,11 +193,95 @@ get_bill_history <- function(UUID, session, bill_number){
   }
 }
 
-scrape_bill <- function(UUID, session = NA, bill_number = NA){
-  metadata <- get_bill_metadata()
-  sponsors <- get_sponsors()
+get_votes <- function(UUID, session, bill_number){
+  # Extract metadata from GetRollCalls
+  payload <- list(biennium = session, billNumber = bill_number)
+  response <- POST(url = "https://wslwebservices.leg.wa.gov/LegislationService.asmx/GetRollCalls", body = payload, encode = "form")
+  
+  if (status_code(response) == 200) {
+    votes <- content(response, as = "parsed")
+    votes_nodes <- xml_find_all(votes, "//d1:ArrayOfRollCall/d1:RollCall", ns = xml_ns(votes))
+    votes <- as_list(votes_nodes)
+    
+    flatten_votes <- function(votes) {
+      metadata <- list(
+        Agency = votes$Agency[[1]],
+        BillId = votes$BillId[[1]],
+        Biennium = votes$Biennium[[1]],
+        Motion = votes$Motion[[1]],
+        SequenceNumber = votes$SequenceNumber[[1]],
+        VoteDate = votes$VoteDate[[1]],
+        YeaVotes = as.numeric(votes$YeaVotes$Count[[1]]),
+        NayVotes = as.numeric(votes$NayVotes$Count[[1]]),
+        AbsentVotes = as.numeric(votes$AbsentVotes$Count[[1]]),
+        ExcusedVotes = as.numeric(votes$ExcusedVotes$Count[[1]])
+      )
+      # extract member-level votes
+      member_votes <- map_dfr(votes$Votes, function(v) {
+        tibble(
+          Name = v$Name,
+          Vote = v$VOte
+        )
+      }) |>
+        mutate(
+          Vote = case_when(
+            Vote == 'Yea' ~ 'Yea',
+            Vote == 'Nay' ~ 'Nay',
+            Vote == 'Absent' ~ 'Absent',
+            TRUE ~ 'NV'
+          )
+        ) |>
+        rename(name = Name, response = Vote)
+      
+      # add roll_call as list-column
+      metadata$roll_call <- list(member_votes)
+      return(metadata)
+    }
+    
+    votes_df <- map_dfr(votes, flatten_votes) |>
+      mutate(
+        uuid = UUID,
+        state = 'WA',
+        session = session,
+        state_bill_id = bill_number,
+        chamber = case_match(
+          Agency,
+          'Senate' ~ 'S',
+          'House' ~ 'H',
+          .default = NA_character_
+        ),
+        date = as_date(VoteDate),
+        description = Motion,
+        yeas = as.integer(YeaVotes),
+        nays = as.integer(NayVotes),
+        other = as.integer(AbsentVotes) + as.integer(ExcusedVotes),
+      ) |>
+      select(uuid, state, session, state_bill_id, chamber, date, description, yeas, nays, other, roll_call)
+    
+    for(i in 1:nrow(votes_df)){
+      votes_df |>
+        slice(i) |>
+        as.list() |>
+        toJSON(pretty = T, auto_unbox = T) |>
+        writeLines(glue("{OUTPUT_PATH}/votes/{UUID}_{i}.json"))
+    }
+  } else {
+    message("error getting sponsors")
+    return(NULL)
+  }
 }
 
-session = '2021-22'
-UUID = 'WA2021SB5015'
-bill_number = 5015
+scrape_bill <- function(UUID, session = NA, bill_number = NA){
+  get_bill_metadata(UUID, session, bill_number)
+  get_sponsors(UUID, session, bill_number)
+  get_bill_history(UUID, session, bill_number)
+  get_votes(UUID, session, bill_number)
+}
+
+# ## Testing
+# session = '2021-22'
+# UUID = 'WA2021SB5015'
+# bill_number = 5015
+# scrape_bill(UUID, session, bill_number)
+
+
