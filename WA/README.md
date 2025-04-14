@@ -10,10 +10,10 @@ scrape_bill(uuid, state, state_bill_id, session)
 
 Expected input for scrape_bill
 
-- uuid: (str) (e.g. "AZ1995H2020")
-- state: (str) state abbreviation (in this case "AZ")
+- uuid: (str) (e.g. "WA1995H2020")
+- state: (str) state abbreviation (in this case "WA")
 - state_bill_id: (str) bill id including chamber (e.g. "HB2020")
-- session: (str) full session name (e.g. "1995 - Forty-second Legislature - First Regular Session"); this is needed for fetching session_id
+- session: (str) first year of the session biennium (e.g. "1995"); this is needed for fetching session_id
 
 ## Output files
 
