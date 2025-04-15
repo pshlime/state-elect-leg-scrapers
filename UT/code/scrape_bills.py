@@ -2,6 +2,8 @@ import json
 import requests
 from bs4 import BeautifulSoup
 from dateutil.parser import parse
+import re
+from datetime import datetime
 
 #helper functions
 def write_file(file_name, directory, data):
@@ -23,24 +25,9 @@ def is_date(string, fuzzy=False):
     except ValueError:
         return False
 
-def convert_to_date(date_str):
-    str_to_return = ""
-    str_list = date_str.split("/")
-    #do year first
-    if int(str_list[-1]) > 25:
-        str_to_return += "19"+str_list[-1]
-    else: 
-        str_to_return += "20"+str_list[-1]
-    str_to_return += "-"
-    #now add 0 before month/day if necessary and add that
-    date = ""
-    for item in str_list[0:-1]:
-        if len(item) == 1:
-            date += "0"+item
-        else:
-            date += item
-    str_to_return += date[0:2]+"-"+date[2:]
-    return str_to_return
+def convert_date(date_str):
+    date_obj = datetime.strptime(date_str, "%m/%d/%y")
+    return date_obj.strftime("%Y-%m-%d")
 
 def get_action_type(action_types, actual_action):
     action_type = ""
@@ -111,38 +98,17 @@ def get_bill_history_1997_2001(uuid, session_year, state_bill_id):
     
     response = requests.get(status_url)
     text_data = response.text
-    text_list = text_data.split()
-    sponsor = get_bill_metadata_1997_2001(uuid, session_year, state_bill_id)[1]["sponsors"][0]["sponsor_name"]
-    
-
-    start = text_list.index(f"{sponsor[-2:]})")
-    date = []
-    action = []
-    act = []
-
-    action_types = "Introduced Referred Passed Failed received Distributed"
-
-    for unit in text_list[start+1:]:
-        if is_date(unit):
-            date.append(convert_to_date(unit))
-            if act:
-                action_body = "N/A"
-                actual_action = (" ".join(act[:-1])) #cuts off the last thing bc idk what it is
-                if "House" in actual_action:
-                    action_body = "House"
-                elif "Senate" in actual_action:
-                    action_body = "Senate"
-                action_type = get_action_type(action_types,actual_action)
-                action.append(f"{action_body} : {action_type} - {actual_action}")
-                act=[]
-        else:
-           act.append(unit)
+   
+    pattern = r"(\d{2}/\d{2}/\d{2})\s+(.+)"
+    matches = re.findall(pattern, text_data)
+    actions = [{"date": convert_date(match[0]), "action": " ".join(match[1].split())} for match in matches]
+                
     bill_history = {
         "uuid": uuid,
         "state": "UT",
         "session": session_year,
         "state_bill_id": state_bill_id,
-        "bill_history": {"date":date,"action":action}
+        "bill_history": [actions]
     }
     return bill_history
 
@@ -157,7 +123,7 @@ def collect_bill_data_1997_2001(uuid, session_year, state_bill_id):
     write_file(uuid, "sponsors", sponsors)
         
     history_data = get_bill_history_1997_2001(uuid, session_year, state_bill_id)    
-    write_file(uuid, "history_data", history_data)
+    write_file(uuid, "bill_history", history_data)
     return {"bill_metadata":metadata,"sponsors":sponsors,"bill_history":history_data}
     
 
@@ -165,4 +131,3 @@ def collect_bill_data_1997_2001(uuid, session_year, state_bill_id):
 if __name__ == "__main__":
     # For example, collecting data for HB0104 from 1997.
     bill_data = collect_bill_data_1997_2001("UT2000H8", "2000", "HB0008")
-    print(bill_data["bill_history"])
