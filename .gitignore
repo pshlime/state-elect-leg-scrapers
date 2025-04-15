@@ -179,3 +179,4 @@ cython_debug/
 .RData
 .Rhistory
 /WI/scratch
+.DS_Store
