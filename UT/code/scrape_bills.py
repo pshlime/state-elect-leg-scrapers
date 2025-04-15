@@ -5,7 +5,7 @@ from dateutil.parser import parse
 
 #helper functions
 def write_file(file_name, directory, data):
-    with open(f'output/{directory}/{file_name}.json', 'w') as f:
+    with open(f'UT/output/{directory}/{file_name}.json', 'w') as f:
         json.dump(data, f, indent=4)
 
 def is_date(string, fuzzy=False):
@@ -75,7 +75,7 @@ def get_bill_metadata_1997_2001(uuid, session_year, state_bill_id):
     sponsor = " ".join(header[split_idx+1:])
 
     bill_metadata = {
-        "uuid": f"UT{session_year}{state_bill_id}",
+        "uuid": uuid,
         "state": "UT",
         "session": session_year,  # For these sessions, we use the session year directly.
         "state_bill_id": state_bill_id,
@@ -153,11 +153,11 @@ def collect_bill_data_1997_2001(uuid, session_year, state_bill_id):
     Returns four JSON objects: bill_metadata, sponsors, bill_history, and votes.
     """
     metadata,sponsors = get_bill_metadata_1997_2001(uuid,session_year, state_bill_id)
-    # write_file(uuid, "bill_metadata", metadata)
-    # write_file(uuid, "sponsors", sponsors)
+    write_file(uuid, "bill_metadata", metadata)
+    write_file(uuid, "sponsors", sponsors)
         
     history_data = get_bill_history_1997_2001(uuid, session_year, state_bill_id)    
-    # write_file(uuid, "history_data", history_data)
+    write_file(uuid, "history_data", history_data)
     return {"bill_metadata":metadata,"sponsors":sponsors,"bill_history":history_data}
     
 
