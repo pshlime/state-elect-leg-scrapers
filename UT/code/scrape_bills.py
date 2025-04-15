@@ -10,21 +10,6 @@ def write_file(file_name, directory, data):
     with open(f'UT/output/{directory}/{file_name}.json', 'w') as f:
         json.dump(data, f, indent=4)
 
-def is_date(string, fuzzy=False):
-    """
-    Return whether the string can be interpreted as a date.
-
-    :param string: str, string to check for date
-    :param fuzzy: bool, ignore unknown tokens in string if True
-    """
-    if string in ["1st","2nd","3rd","4th","5th"]:
-        return False
-    try: 
-        parse(string, fuzzy=fuzzy)
-        return True
-    except ValueError:
-        return False
-
 def convert_date(date_str):
     date_obj = datetime.strptime(date_str, "%m/%d/%y")
     return date_obj.strftime("%Y-%m-%d")
