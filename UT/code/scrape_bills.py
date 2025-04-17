@@ -25,6 +25,18 @@ def get_action_type(action_types, actual_action):
     if not action_type:
         return "N/A"
     return action_type
+
+def get_status(soup):
+    last_action_line = soup.find(string=lambda s: s and "Last Action:" in s)
+    if last_action_line:
+        last_action = last_action_line.strip()
+    else: 
+        return "Last Action not found."
+    flags = {"struck":"Defeated - ","signed":"Enacted - "}
+    for flag in flags.keys():
+        if flag in last_action:
+            return flags[flag]
+    return f"{last_action.split()[-1]} - "
     
 #bill functions
 
@@ -45,15 +57,17 @@ def get_bill_metadata_1997_2001(uuid, session_year, state_bill_id):
     split_idx = header.index('--')
     title = " ".join(header[2:split_idx])
     sponsor = " ".join(header[split_idx+1:])
+    status = get_status(soup)
+
 
     bill_metadata = {
         "uuid": uuid,
         "state": "UT",
-        "session": session_year,  # For these sessions, we use the session year directly.
+        "session": session_year,  
         "state_bill_id": state_bill_id,
         "title": title,
-        "description": None,  # No bill description available for these sessions.
-        "status": None,  # Could be derived from history if needed.
+        "description": None, 
+        "status": status,
         "state_url": url
     }
 
