@@ -182,3 +182,4 @@ cython_debug/
 .DS_Store
 /output/scratch_files/*
 *.PDF
+/FL/output
