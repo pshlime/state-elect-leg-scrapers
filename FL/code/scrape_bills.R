@@ -11,31 +11,51 @@ library(glue)
 library(httr)
 library(xml2)
 library(rvest)
+library(pdftools)
+library(tesseract)
 
 rm(list = ls())
 gc()
 
 OUTPUT_PATH <- 'FL/output'
-HEADERS <- c(
-  "Accept" = "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-  "Accept-Encoding" = "gzip, deflate, br, zstd",
-  "Accept-Language" = "en-US,en;q=0.9",
-  "Cache-Control" = "max-age=0",
-  "Connection" = "keep-alive",
-  "Cookie" = "_gcl_au=1.1.922952014.1744867225; ASP.NET_SessionId=vi5vza44oewjaasgcanrjntg; _gid=GA1.2.1971583501.1745332184; _ga=GA1.2.1257031925.1744867225; _ga_9ZYRS0B7FN=GS1.1.1745332183.5.1.1745333068.0.0.0; TS011a9ece=010b53be0db986840215846becc751d59fef54157202ffef97f04e423a4ec2e4bf34b00007001d7138c7c78fb94f216d2f3489a7d0; session_cookie_mfhp=!9uq8wEqMQvE9fOMoo5GqtdkYuDcADk22z8SGfbzXYweT5Gs+R+sybSoSsFQ6xtrsAbN46XPRBDDbFw==; TS54fca245027=083632b602ab2000bb3dd03a6cf62d15a592744b66a3f77187f043ce67b8fdfb453bf1444e589d2808500ee6e21130009c4c48af7f2ba71cabe8add00e1eb483a70ee0b826858e2d0a816060084cd972c3fa259b4b6e4e29d4a64b95caeaf1a3",
-  "Host" = "www.flhouse.gov",
-  "Sec-Fetch-Dest" = "document",
-  "Sec-Fetch-Mode" = "navigate",
-  "Sec-Fetch-Site" = "none",
-  "Sec-Fetch-User" = "?1",
-  "Upgrade-Insecure-Requests" = "1",
-  "User-Agent" = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
-  "sec-ch-ua" = "\"Chromium\";v=\"134\", \"Not:A-Brand\";v=\"24\", \"Google Chrome\";v=\"134\"",
-  "sec-ch-ua-mobile" = "?0",
-  "sec-ch-ua-platform" = "\"macOS\""
-)
 
 # Functions
+clean_html <- function(html_content) {
+  html_content <- str_replace_all(html_content, "<p[^>]*>", " ")
+  html_content <- str_replace_all(html_content, "</p>", " ")
+  html_content <- str_replace_all(html_content, "<div[^>]*>", " ")
+  html_content <- str_replace_all(html_content, "</div>", " ")
+  html_content <- str_replace_all(html_content, "<a[^>]*>", " ")
+  html_content <- str_replace_all(html_content, "</a>", " ")
+  html_content <- str_replace_all(html_content, "<span[^>]*>", " ")
+  html_content <- str_replace_all(html_content, "</span>", " ")
+  html_content <- str_replace_all(html_content, "<b[^>]*>", " ")
+  html_content <- str_replace_all(html_content, "</b>", " ")
+  html_content <- str_replace_all(html_content, "<i[^>]*>", " ")
+  html_content <- str_replace_all(html_content, "</i>", " ")
+  html_content <- str_replace_all(html_content, "<td[^>]*>", " ")
+  html_content <- str_replace_all(html_content, "<meta[^>]*>", " ")
+  html_content <- str_replace_all(html_content, "</td>", " ")
+  html_content <- str_replace_all(html_content, "</tr>", " ")
+  html_content <- str_replace_all(html_content, "<tr[^>]*>", " ")
+  html_content <- str_replace_all(html_content, "\\s+", " ")
+  html_content <- str_replace_all(html_content, "<center[^>]*>", " ")
+  html_content <- str_replace_all(html_content, "</center[^>]*>", " ")
+  html_content <- str_replace_all(html_content, "<table[^>]*>", " ")
+  html_content <- str_replace_all(html_content, "</table[^>]*>", " ")
+  html_content <- str_replace_all(html_content, "\\[", " ")
+  html_content <- str_replace_all(html_content, "\\]", " ")
+  html_content <- str_replace_all(html_content, "</u> <u>", " ")
+  html_content <- str_replace_all(html_content, "</u><u>", " ")
+  html_content <- str_replace_all(html_content, '<u>', '<u class="amendmentInsertedText">')
+  html_content <- str_replace_all(html_content, '<s>', '<strike class="amendmentDeletedText">')
+  html_content <- str_replace_all(html_content, '</s>', '</strike>')
+  html_content <- str_replace_all(html_content, ' </pre>', ' ')
+  
+  html_content <- str_trim(html_content)
+  return(html_content)
+}
+
 build_url <- function(session, bill_number){
   # Pull just number
   bill_number <- str_extract(bill_number, "\\d+")
@@ -70,8 +90,8 @@ get_bill_metadata <- function(UUID, session, bill_number, state_url, state_html)
   ) |> as.list() |> toJSON(auto_unbox = T, pretty = T) |> writeLines(glue("{OUTPUT_PATH}/bill_metadata/{UUID}.json"))
 }
 
-get_sponsors <- function(UUID, session, bill_number, state_url, state_html){
-  sponsors_list <- state_html |> html_nodes("#main > div > div.grid-100 > p:nth-child(5)") |> html_text() |> str_trim() |> str_squish()
+get_sponsors <- function(UUID, session, bill_number, state_html){
+  sponsors_list <- state_html |> html_nodes("h2+ p") |> html_text() |> str_trim() |> str_squish()
   sponsors_list <- str_split(sponsors_list, ";")[[1]]
   sponsors_list <- str_trim(sponsors_list)
   cosponsor_index <- which(str_detect(sponsors_list, "\\(CO-INTRODUCERS\\)"))
@@ -94,6 +114,8 @@ get_sponsors <- function(UUID, session, bill_number, state_url, state_html){
     sponsors_df <- data.frame(sponsor_name = c(sponsors), sponsor_type = "sponsor")
   }
   
+  sponsors_df <- sponsors_df |> filter(!is.na(sponsor_name))
+  
   tibble(
     uuid = UUID, 
     state = 'FL', 
@@ -110,15 +132,17 @@ get_sponsors <- function(UUID, session, bill_number, state_url, state_html){
     writeLines(glue("{OUTPUT_PATH}/sponsors/{UUID}.json"))
 }
 
-get_bill_history <- function(UUID, session, bill_number, state_url, state_html){
+get_bill_history <- function(UUID, session, bill_number, state_html){
   history_df <- state_html |>
     html_node("#tabBodyBillHistory") |>
     html_table(fill = T) |>
+    separate_rows(Action, sep = "\\r\\n") |>
     mutate(
       date = as_date(Date, format = "%m/%d/%Y"),
       Action = str_remove_all(Action, "• ") |> str_trim() |> str_squish(),
       action = glue("{Chamber} - {Action}"),
-      action = str_replace_all(action, c("^Senate - "="S - ","House - "="H - "))
+      action = str_replace_all(action, c("^Senate - "="S - ","House - "="H - ")),
+      action = str_remove_all(action, "^ - ")
     ) |>
     select(date, action)
   
@@ -138,27 +162,126 @@ get_bill_history <- function(UUID, session, bill_number, state_url, state_html){
     writeLines(glue("{OUTPUT_PATH}/bill_history/{UUID}.json"))
 }
 
-get_votes <- function(UUID, session, bill_number){
+get_votes <- function(UUID, session, bill_number, state_html){
+  # Check to see if any votes
+  if(is_empty(state_html |> html_node("#tabBodyVoteHistory") |> html_table())){
+    return(NULL)
+  } else{
+    votes_df <- state_html |> html_node("h4#Votes + table.tbl") |> html_table(fill = TRUE)
+    votes_df$rollcall_url <- state_html |> html_nodes("#Votes+ .tbl a") |> html_attr("href")
+    votes_df$rollcall_url <- glue("https://www.flsenate.gov{votes_df$rollcall_url}")
     
-    votes_df <- map_dfr(votes, flatten_votes) |>
+    parse_rollcall <- function(file_url){
+      if(str_detect(file_url, "html$|HTML$")){
+        rollcall_html <- read_html(file_url) |> html_nodes("pre") |> html_text()
+        if(is_empty(rollcall_html)){
+          rollcall_html <- read_html(file_url)
+          vote_data <- rollcall_html |> html_nodes("body > table:nth-child(5)") |> html_text()
+          vote_pattern <- "(Y|N|-|EX|CH)\\s+([A-Za-z,\\.\\-]+)"
+          vote_data <- (str_extract_all(vote_data, vote_pattern))[[1]]
+          rollcall_html <- html_text(rollcall_html)
+        } else{
+          vote_pattern <- "(Y|N|-|EX|CH)\\s+([A-Za-z,\\.\\-]+)"
+          vote_data <- (str_extract_all(rollcall_html, vote_pattern))[[1]]
+        }
+        # Get roll call responses
+        
+        vote_data <- data.frame(raw = vote_data) |>
+          mutate(
+            response = str_extract(raw, "^[A-Z\\-]{1,2}") |> str_trim() |>
+              case_match(
+                "Y" ~ "Yea",
+                "N" ~ "Nay",
+                "EX" ~ "Absent",
+                .default = "NV"
+              ),
+            name = str_extract(raw, " [A-Za-z,\\.]+$") |> str_trim() |>
+              str_remove_all("[0-9\\-]+$")
+          ) |>
+          select(name, response) |>
+          filter(!(name %in% c("THE", "YES", "The", "Yes")) & !is.na(name))
+        
+        # Get question
+        description <- case_when(
+          str_detect(rollcall_html, "PASSAGE") & str_detect(rollcall_html, "R3") ~ "Third Reading Passage",
+          str_detect(rollcall_html, "Reading Number .: 3") ~ "Third Reading Passage",
+          str_detect(rollcall_html, "PASSAGE") & str_detect(rollcall_html, "R2") ~ "Second Reading Passage",
+          str_detect(rollcall_html, "PASSAGE") & str_detect(rollcall_html, "R2") ~ "Second Reading Passage",
+          str_detect(rollcall_html, "PASSAGE") ~ "Passage",
+          TRUE ~ NA_character_
+        ) 
+        
+        counts <- vote_data |> 
+          summarise(
+            yeas = sum(response == "Yea", na.rm = TRUE),
+            nays = sum(response == "Nay", na.rm = TRUE),
+            other = sum(!(response %in% c('Yea','Nay')), na.rm = TRUE)
+          )
+        
+        return(list(description = description, vote_data = vote_data, counts = counts))
+        
+      } else if(str_detect(file_url, "pdf$|PDF$")){
+        file_name <- basename(file_url)
+        download_path <- glue("FL/output/scratch_files/{file_name}")
+        download.file(file_url, download_path, mode = "wb")
+        
+        pdf_text <- pdf_text(download_path)
+        
+        # Get question
+        description_pattern <- "(?:SB|SJR|HB|HJR)\\s+\\d+\\s+([A-Za-z\\s]+)"
+        description <- str_match(pdf_text, description_pattern)
+        description <- description |> 
+          str_trim() |>
+          str_remove_all("^(SB|SJR|HB|HJR)\\s+\\d+\\s*") |>
+          str_remove_all("Yeas|Nays|Not Voting") |>
+          str_squish() |>
+          unique()
+        
+        # Get roll call responses
+        vote_pattern <- "(Y|EX|N)\\s+([A-Za-z\\-]+(?:\\s+[A-Za-z\\-]+)*)(?:\\-\\d+)"
+        vote_data <- (str_extract_all(pdf_text, vote_pattern))[[1]]
+        vote_data <- data.frame(raw = vote_data) |>
+          mutate(
+            response = str_extract(raw, "^[A-Z]{1,2}") |> str_trim() |>
+              case_match(
+                "Y" ~ "Yea",
+                "N" ~ "Nay",
+                "EX" ~ "Absent",
+                .default = "NV"
+              ),
+            name = str_extract(raw, " [A-Za-z0-9\\-\\s]+$") |> str_trim() |>
+              str_remove_all("[0-9\\-]+$") |>
+              str_remove_all("^President ")
+          ) |>
+          select(name, response) |>
+          filter(!(name %in% c("THE", "YES", "The", "Yes")) & !is.na(name))
+        
+        counts <- vote_data |> 
+          summarise(
+            yeas = sum(response == "Yea", na.rm = TRUE),
+            nays = sum(response == "Nay", na.rm = TRUE),
+            other = sum(!(response %in% c('Yea','Nay')), na.rm = TRUE)
+          )
+        
+        return(list(description = description, vote_data = vote_data, counts = counts))
+      }
+    }
+    
+    votes_df$roll_call <- map(votes_df$rollcall_url, parse_rollcall)
+    votes_df2 <- unnest_wider(votes_df, 'roll_call') |>
+      unnest_wider('counts') |>
       mutate(
         uuid = UUID,
         state = 'FL',
         session = session,
         state_bill_id = bill_number,
         chamber = case_match(
-          Agency,
-          'Senate' ~ 'S',
-          'House' ~ 'H',
-          .default = NA_character_
-        ),
-        date = as_date(VoteDate),
-        description = Motion,
-        yeas = as.integer(YeaVotes),
-        nays = as.integer(NayVotes),
-        other = as.integer(AbsentVotes) + as.integer(ExcusedVotes),
-      ) |>
-      select(uuid, state, session, state_bill_id, chamber, date, description, yeas, nays, other, roll_call)
+          Chamber,
+          "Senate" ~ "S",
+          "House" ~ "H",
+          .default = NA_character_),
+        date = mdy_hm(Date) |> format("%Y-%m-%d")) |>
+      select(uuid, state, session, state_bill_id, chamber, date, description, yeas, nays, other, roll_call = vote_data)
     
     for(i in 1:nrow(votes_df)){
       votes_df |>
@@ -167,6 +290,11 @@ get_votes <- function(UUID, session, bill_number){
         toJSON(pretty = T, auto_unbox = T) |>
         writeLines(glue("{OUTPUT_PATH}/votes/{UUID}_{i}.json"))
     }
+  }
+}
+
+get_bill_text <- function(UUID, state_html){
+  
 }
 
 scrape_bill <- function(UUID, session = NA, bill_number = NA){
@@ -181,20 +309,18 @@ scrape_bill <- function(UUID, session = NA, bill_number = NA){
     str_detect(bill_number, "HB|HJR") & session == '2008' ~ '57',
     str_detect(bill_number, "HB|HJR") & session == '2009' ~ '61',
     str_detect(bill_number, "HB|HJR") & session == '2010' ~ '64',
-    str_detect(bill_number, "HB|HJR") & session == '2011' ~ '66'
+    str_detect(bill_number, "HB|HJR") & session == '2011' ~ '66',
+    TRUE ~ session
   )
   
   state_url <- build_url(session, bill_number)
-  if (str_detect(bill_number, "SB|SJR") | str_detect(bill_number, "HB|HJR") & session %in% c("1998","1999","2000","2001","2001A")) {
-    state_html <- read_html(state_url)
-  } else if (str_detect(bill_number, "HB|HJR")) {
-    state_html <- GET(state_url, add_headers(.headers = HEADERS)) |> content("text") |> read_html()
-  }
+  state_html <- read_html(state_url)
   
   get_bill_metadata(UUID, session, bill_number, state_url, state_html)
-  get_sponsors(UUID, session, bill_number, state_url, state_html)
-  get_bill_history(UUID, session, bill_number)
-  get_votes(UUID, session, bill_number)
+  get_sponsors(UUID, session, bill_number, state_html)
+  get_bill_history(UUID, session, bill_number, state_html)
+  get_votes(UUID, session, bill_number, state_html)
+  get_bill_text(UUID, state_html)
 }
 
 # ## Testing

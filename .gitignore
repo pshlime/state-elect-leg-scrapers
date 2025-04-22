@@ -180,3 +180,5 @@ cython_debug/
 .Rhistory
 /.idea
 .DS_Store
+/output/scratch_files/*
+*.PDF
