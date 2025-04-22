@@ -37,92 +37,60 @@ HEADERS <- c(
 
 # Functions
 build_url <- function(session, bill_number){
-  if(str_detect(bill_number, "SJR|SB") | str_detect(bill_number, "HB|HJR") & session %in% c("48", "49", "50", "51", "71", "72")){
-    # Senate bills
-    # Pull just number
-    bill_number <- str_extract(bill_number, "\\d+")
-    glue("https://www.flsenate.gov/Session/Bill/{session}/{bill_number}")
-  } else {
-    # House bills
-    bill_number <- str_extract(bill_number, "\\d+")
-    search_url <- glue("https://www.flhouse.gov/Sections/Bills/bills.aspx?chamber=B&sessionId={session}&billNumber={bill_number}")
-    
-    # Perform the GET request with custom headers
-    search_response <- GET(search_url, add_headers(.headers = HEADERS))
-    
-    # Read the HTML content from the response
-    search_html <- content(search_response, "text") |> read_html()
-    
-    # Extract bill id
-    bill_url <- search_html |> html_nodes("#result-block > ul > li > a") |> html_attr("href")
-    glue("https://www.flhouse.gov{bill_url}")
-  }
+  # Pull just number
+  bill_number <- str_extract(bill_number, "\\d+")
+  glue("https://www.flsenate.gov/Session/Bill/{session}/{bill_number}")
 }
 
 
 get_bill_metadata <- function(UUID, session, bill_number, state_url, state_html){
-  if(str_detect(state_url, "senate")){
-    title <- state_html |> html_nodes("h2") |> html_text() |> str_squish() |> tail(1)
-    description <- state_html |> html_nodes(".width80") |> html_text() |> str_squish()
-    status <- state_html |> 
-      html_nodes(".pad-left0") |> 
-      html_text() |> 
-      str_extract("Last Action:[^|]+") |> 
-      str_trim() |>
-      str_squish() |>
-      str_replace_all("Last Action: [0-9]{1,2}/[0-9]{1,2}/[0-9]{2,4}", "") |>
-      str_replace_all("Bill Text: Web Page", "") |>
-      str_trim()
-    
-    status <- ifelse(str_detect(status, "Chapter"), glue("Enacted - {status}"), status)
-    
-  } else if(str_detect(state_url, "house")){
-    title <- state_html |> html_nodes("#header-bill-subject") |> html_text() |> str_squish()
-    description <- state_html |> html_nodes("#bill-subject") |> html_text() |> str_squish()
-    status <- state_html |> html_nodes("#lblLastAction") |> html_text() |> str_squish()
-    status <- ifelse(str_detect(status, "Chapter"), glue("Enacted - {status}"), status)
-  }
-    tibble(
-      uuid = UUID, 
-      state = 'FL', 
-      session = session, 
-      state_bill_id = bill_number, 
-      title = title,
-      description = description,
-      status = status,
-      state_url = state_url
-    ) |> as.list() |> toJSON(auto_unbox = T, pretty = T) |> writeLines(glue("{OUTPUT_PATH}/bill_metadata/{UUID}.json"))
+  title <- state_html |> html_nodes("h2") |> html_text() |> str_squish() |> tail(1)
+  description <- state_html |> html_nodes(".width80") |> html_text() |> str_squish()
+  status <- state_html |> 
+    html_nodes(".pad-left0") |> 
+    html_text() |> 
+    str_extract("Last Action:[^|]+") |> 
+    str_trim() |>
+    str_squish() |>
+    str_replace_all("Last Action: [0-9]{1,2}/[0-9]{1,2}/[0-9]{2,4}", "") |>
+    str_replace_all("Bill Text: Web Page", "") |>
+    str_trim()
+  
+  status <- ifelse(str_detect(status, "Chapter"), glue("Enacted - {status}"), status)
+  
+  tibble(
+    uuid = UUID, 
+    state = 'FL', 
+    session = session, 
+    state_bill_id = bill_number, 
+    title = title,
+    description = description,
+    status = status,
+    state_url = state_url
+  ) |> as.list() |> toJSON(auto_unbox = T, pretty = T) |> writeLines(glue("{OUTPUT_PATH}/bill_metadata/{UUID}.json"))
 }
 
 get_sponsors <- function(UUID, session, bill_number, state_url, state_html){
-  if(str_detect(state_url, "senate")){
-    sponsors_list <- state_html |> html_nodes("#main > div > div.grid-100 > p:nth-child(5)") |> html_text() |> str_trim() |> str_squish()
-    sponsors_list <- str_split(sponsors_list, ";")[[1]]
-    sponsors_list <- str_trim(sponsors_list)
-    cosponsor_index <- which(str_detect(sponsors_list, "\\(CO-INTRODUCERS\\)"))
+  sponsors_list <- state_html |> html_nodes("#main > div > div.grid-100 > p:nth-child(5)") |> html_text() |> str_trim() |> str_squish()
+  sponsors_list <- str_split(sponsors_list, ";")[[1]]
+  sponsors_list <- str_trim(sponsors_list)
+  cosponsor_index <- which(str_detect(sponsors_list, "\\(CO-INTRODUCERS\\)"))
+  
+  if(!is_empty(cosponsor_index)){
+    sponsors <- sponsors_list[1:(cosponsor_index - 1)] |>
+      str_replace_all(c("GENERAL BILL by "="","LOCAL BILL by"="","JOINT RESOLUTION by"="")) |>
+      str_trim()
+    sponsors_df <- data.frame(sponsor_name = c(sponsors), sponsor_type = "sponsor")
+    cosponsors <- sponsors_list[(cosponsor_index + 1):length(sponsors_list)] |>
+      str_replace_all("\\(CO-INTRODUCERS\\)", "") |>
+      str_trim()
+    cosponsors_df <- data.frame(sponsor_name = c(cosponsors), sponsor_type = "cosponsor")
     
-    if(!is_empty(cosponsor_index)){
-      sponsors <- sponsors_list[1:(cosponsor_index - 1)] |>
-        str_replace_all(c("GENERAL BILL by "="","LOCAL BILL by"="","JOINT RESOLUTION by"="")) |>
-        str_trim()
-      sponsors_df <- data.frame(sponsor_name = c(sponsors), sponsor_type = "sponsor")
-      cosponsors <- sponsors_list[(cosponsor_index + 1):length(sponsors_list)] |>
-        str_replace_all("\\(CO-INTRODUCERS\\)", "") |>
-        str_trim()
-      cosponsors_df <- data.frame(sponsor_name = c(cosponsors), sponsor_type = "cosponsor")
-      
-      sponsors_df <- bind_rows(sponsors_df, cosponsors_df)
-    } else{
-      sponsors <- sponsors_list |>
-        str_replace_all(c("GENERAL BILL by "="","LOCAL BILL by"="","JOINT RESOLUTION by"="")) |>
-        str_trim()
-      sponsors_df <- data.frame(sponsor_name = c(sponsors), sponsor_type = "sponsor")
-    }
-  } else if(str_detect(state_url, "house")){
-    sponsors <- state_html |> 
-      html_nodes("#lblSponsors") |> 
-      html_text() |> 
-      str_squish()
+    sponsors_df <- bind_rows(sponsors_df, cosponsors_df)
+  } else{
+    sponsors <- sponsors_list |>
+      str_replace_all(c("GENERAL BILL by "="","LOCAL BILL by"="","JOINT RESOLUTION by"="")) |>
+      str_trim()
     sponsors_df <- data.frame(sponsor_name = c(sponsors), sponsor_type = "sponsor")
   }
   
@@ -143,20 +111,16 @@ get_sponsors <- function(UUID, session, bill_number, state_url, state_html){
 }
 
 get_bill_history <- function(UUID, session, bill_number, state_url, state_html){
-  if(str_detect(state_url, "senate")){
-    history_df <- state_html |>
-      html_node("#tabBodyBillHistory") |>
-      html_table(fill = T) |>
-      mutate(
-        date = as_date(Date, format = "%m/%d/%Y"),
-        Action = str_remove_all(Action, "• ") |> str_trim() |> str_squish(),
-        action = glue("{Chamber} - {Action}"),
-        action = str_replace_all(action, c("^Senate - "="S - ","House - "="H - "))
-      ) |>
-      select(date, action)
-  } else if(str_detect(state_url, "house")){
-    
-  }
+  history_df <- state_html |>
+    html_node("#tabBodyBillHistory") |>
+    html_table(fill = T) |>
+    mutate(
+      date = as_date(Date, format = "%m/%d/%Y"),
+      Action = str_remove_all(Action, "• ") |> str_trim() |> str_squish(),
+      action = glue("{Chamber} - {Action}"),
+      action = str_replace_all(action, c("^Senate - "="S - ","House - "="H - "))
+    ) |>
+    select(date, action)
   
   tibble(
     uuid = UUID, 
