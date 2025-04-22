@@ -266,7 +266,7 @@ get_votes <- function(UUID, session, bill_number){
         writeLines(glue("{OUTPUT_PATH}/votes/{UUID}_{i}.json"))
     }
   } else {
-    message("error getting sponsors")
+    message("error getting votes")
     return(NULL)
   }
 }
