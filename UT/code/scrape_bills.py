@@ -30,13 +30,14 @@ def get_status(soup):
     last_action_line = soup.find(string=lambda s: s and "Last Action:" in s)
     if last_action_line:
         last_action = last_action_line.strip()
+        last_action = last_action.replace("Last Action: ", "")
     else: 
         return "Last Action not found."
-    flags = {"struck":"Defeated - ","signed":"Enacted - "}
+    flags = {"struck":"Defeated - {last_action}","signed":"Enacted - {last_action}",}
     for flag in flags.keys():
         if flag in last_action:
-            return flags[flag]
-    return f"{last_action.split()[-1]} - "
+            return flags[flag].format(last_action=last_action)
+    return last_action
     
 #bill functions
 
@@ -128,5 +129,5 @@ def collect_bill_data_1997_2001(uuid, session_year, state_bill_id):
 
 # Example usage:
 if __name__ == "__main__":
-    # For example, collecting data for HB0104 from 1997.
-    bill_data = collect_bill_data_1997_2001("UT2000H8", "2000", "HB0008")
+    # For example, collecting data for HB0417 from 1998.
+    bill_data = collect_bill_data_1997_2001("UT1998H417", "1998", "HB0417")
