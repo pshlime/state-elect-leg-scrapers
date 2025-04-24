@@ -38,8 +38,10 @@ def get_bill_metadata_1997_2001(uuid, session_year, state_bill_id):
  
     #get status
     last_action_li = soup.select_one('ul.billinfoulm li:contains("Last Action")')
-    last_action = last_action_li.get_text(strip=True).replace("Last Action:", "").split()
-    status = "Enacted - " if any("Signed" in chunk for chunk in last_action) else last_action[4][:-4]
+    last_action = re.search(r"Last Action:.*?(?=Last Location)", last_action_li.get_text(strip=True))
+    last_action = last_action.replace("Last Action:", "").strip()
+    
+    status = "Enacted - {last_action}".format(last_action = last_action) if any("Signed" in chunk for chunk in last_action) else last_action
 
     bill_metadata = {
         "uuid": uuid,
@@ -116,4 +118,4 @@ def collect_bill_data_1997_2001(uuid, session_year, state_bill_id):
 
 # Example usage:
 if __name__ == "__main__":
-    bill_data = collect_bill_data_1997_2001("UT2020HB0019", "2020", "HB0019")
+    bill_data = collect_bill_data_1997_2001("UT2008HB71", "2008", "HB0071")
