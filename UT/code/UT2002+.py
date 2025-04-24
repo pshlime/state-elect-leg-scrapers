@@ -54,9 +54,15 @@ def get_bill_metadata_1997_2001(uuid, session_year, state_bill_id):
 
     sponsors = []
     sponsors.append({
-        "sponsor_name": [sponsor1,sponsor2],
-        "sponsor_type": ["Bill Sponsor","Floor Sponsor"],
+        "sponsor_name": sponsor1.replace("Rep. ", "").replace("Sen. ", ""),
+        "sponsor_type": "sponsor",
     })
+    if sponsor2:
+        sponsors.append({
+            "sponsor_name": sponsor2.replace("Rep. ", "").replace("Sen. ", ""),
+            "sponsor_type": "sponsor",
+        })
+
     sponsors_output = {
         "uuid": uuid,
         "state": "UT",
@@ -100,11 +106,11 @@ def collect_bill_data_1997_2001(uuid, session_year, state_bill_id):
     Returns four JSON objects: bill_metadata, sponsors, bill_history, and votes.
     """
     metadata,sponsors = get_bill_metadata_1997_2001(uuid,session_year, state_bill_id)
-    # write_file(uuid, "bill_metadata", metadata)
-    # write_file(uuid, "sponsors", sponsors)
+    write_file(uuid, "bill_metadata", metadata)
+    write_file(uuid, "sponsors", sponsors)
         
     history_data = get_bill_history_1997_2001(uuid, session_year, state_bill_id)    
-    # write_file(uuid, "bill_history", history_data)
+    write_file(uuid, "bill_history", history_data)
     return {"bill_metadata":metadata,"sponsors":sponsors,"bill_history":history_data}
     
 
