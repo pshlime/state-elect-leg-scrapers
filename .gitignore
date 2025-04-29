@@ -178,3 +178,5 @@ cython_debug/
 /output/*
 .RData
 .Rhistory
+/WI/scratch
+.DS_Store
