@@ -181,49 +181,35 @@ def scrape_votes(uuid, state, state_bill_id, session, page):
         page = html.fromstring(response.content)
 
         # checking for important votes
-        if page.xpath("//div[@class='qs_entry_']//a//@href"):
-            text = "".join(page.xpath("//div[@class='journals']//text()"))
+        # if page.xpath("//div[@class='qs_entry_']//a//@href"):
+        text = "".join(page.xpath("//div[@class='journals']//text()"))
 
-            full_page_url = ""
-            for link in page.xpath("//a//@href"):
-                if re.match("^/1995/related/journals/(assembly|senate)/[^/.]+$", link):
-                    full_page_url = link
+        file = open(f"{voting_event[-4:]}.txt", "w")
+        file.write(text)
+        file.close()
 
-            if full_page_url:
-                response = requests.get(BASE_URL + full_page_url)
-                full_page = html.fromstring(response.content)
-                present = "".join(full_page.xpath("//div[@class='qs_present_']//text()"))
+        data = scrapeWithOpenAI(state_bill_id, f"{voting_event[-4:]}.txt")
 
-                file = open(f"{voting_event[-4:]}.txt", "w")
-                file.write(present+ "\n" + text)
-                file.close()
+        for event in data:
+            if event['description'] not in questions:
+                vote_event = {
+                    "uuid": uuid,
+                    "state": state,
+                    "session": session,
+                    "state_bill_id": state_bill_id,
+                    "chamber": chamber,
+                    "date": date,
+                    "description": event['description'],
+                    "yeas": event['yeas'],
+                    "nays": event['nays'],
+                    "other": event['other'],
+                    "roll_call": event['roll_call']
+                }
 
-                data = scrapeWithOpenAI(state_bill_id, f"{voting_event[-4:]}.txt")
+                vote_events.append((vote_event, date))
+                questions.add(event['description'])
 
-                for event in data:
-                    if event['description'] not in questions:
-                        vote_event = {
-                            "uuid": uuid,
-                            "state": state,
-                            "session": session,
-                            "state_bill_id": state_bill_id,
-                            "chamber": chamber,
-                            "date": date,
-                            "description": event['description'],
-                            "yeas": event['yeas'],
-                            "nays": event['nays'],
-                            "other": event['other'],
-                            "roll_call": event['roll_call']
-                        }
-
-                        vote_events.append((vote_event, date))
-                        questions.add(event['description'])
-
-                os.remove(f"{voting_event[-4:]}.txt")
-
-            else:
-                raise TypeError("Present member not found")
-
+        os.remove(f"{voting_event[-4:]}.txt")
     return vote_events
 
 def append_to_csv(uuid, session, bill_number, link):
@@ -374,9 +360,9 @@ For each of these cases, return the following structured information:
         print("Still not valid JSON. Raw output:", cleaned_response)
 
 if __name__ == "__main__":
-    test_uuid = "WI1995SB125"
+    test_uuid = "WI2003AB121"
     test_state = "WI"
-    test_bill_id = "AB330"
-    test_session = "1995"
+    test_bill_id = "AB121"
+    test_session = "2003"
 
     scrape_bill(test_uuid, test_state, test_bill_id, test_session)
