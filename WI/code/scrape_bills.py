@@ -193,7 +193,7 @@ def scrape_votes(uuid, state, state_bill_id, session, page):
         file.write(text)
         file.close()
 
-        data = scrapeWithOpenAI(state_bill_id, f"{voting_event[-4:]}.txt")
+        data = scrapeWithOpenAI(state_bill_id, f"WI/scratch/{voting_event[-4:]}.txt")
 
         for event in data:
             if event['description'] not in questions:
@@ -214,11 +214,11 @@ def scrape_votes(uuid, state, state_bill_id, session, page):
                 vote_events.append((vote_event, date))
                 questions.add(event['description'])
 
-                os.remove(f"{voting_event[-4:]}.txt")
-
             else:
                 raise TypeError("Present member not found")
 
+    os.remove(journal_page_filepath)
+    
     return vote_events
 
 def append_to_csv(uuid, session, bill_number, link):
@@ -366,9 +366,9 @@ For each of these cases, return the following structured information:
         print("Still not valid JSON. Raw output:", cleaned_response)
 
 if __name__ == "__main__":
-    test_uuid = "WI2003AB121"
+    test_uuid = "WI2008AB295"
     test_state = "WI"
-    test_bill_id = "AB330"
-    test_session = "1995"
+    test_bill_id = "AB295"
+    test_session = "2007"
 
     scrape_bill(test_uuid, test_state, test_bill_id, test_session)
