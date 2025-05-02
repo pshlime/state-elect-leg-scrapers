@@ -251,7 +251,7 @@ def scrapeWithOpenAI(bill_id, file_path):
     with open(file_path, "r", encoding="utf-8") as file:
         file_content = file.read()
 
-    prompt = f"""Extract all voting-related actions for {congress[bill_id[0]]} Bill {bill_id[2:]} ({bill_id}) from this text.
+    prompt = f"""Extract all voting-related actions for {congress[bill_id[0]]} Bill {bill_id[2:]} ({bill_id}) from this text. Identify votes for this bill only. All other bills should be ignored.
 
 {file_content}
 
