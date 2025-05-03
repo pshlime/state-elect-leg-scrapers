@@ -11,6 +11,54 @@ import re
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
+import json
+
+def scrape_bill(uuid, session, bill_number):
+    #bill_history_data, las
+    
+    state = uuid[0:2]
+    year = uuid[2:6]
+    state_bill_id = uuid[6:]
+    bill_id = state_bill_id[0:2] + "-" + state_bill_id[2:] #make it work with old function
+    metadata_record = {}
+    sponsor_record = {}
+    vote_record = {}
+    bill_record = {}
+    
+    # Generate the history URL
+    history_url, roll_call_url, status_url= generate_history_url(bill_id, session)
+    
+    # Extract bill meta_data
+    bill_title, bill_description, bill_status = extractMetadata(history_url)
+    if bill_title:
+        metadata_record = {"uuid":uuid, "state":state, "session":year,
+              "state_bill_id":state_bill_id, "title":bill_title, 
+              "description":bill_description, "status":bill_status, "state_url":history_url}
+   
+    # Extract sponsors
+    sponsor_list = extractSponsors(history_url)
+    if sponsor_list:
+        sponsor_record = {"uuid":uuid, "state":state, "session":year,
+              "state_bill_id":state_bill_id, "sponsors":sponsor_list}
+    
+    # Extract votes
+    final_votes, roll_call, vote_date, chamber, vote_description = extractVotes(roll_call_url)
+    
+    if final_votes:
+        # description is missing. need to figure out how to get that.
+        vote_record = {"uuid":uuid, "state":state, "session":year,
+              "state_bill_id":state_bill_id, "chamber":chamber, "date":vote_date,
+              "description": vote_description, "Yea":final_votes["Yea"], "Nay":final_votes["Nay"],
+              "NV":final_votes["NV"], "roll_call":roll_call}
+        
+    # Extract bill history
+    bill_actions = extractHistory(status_url)
+    if bill_actions:
+        bill_record = {"uuid":uuid, "state":state, "session":year,
+              "state_bill_id":state_bill_id, "bill_history":bill_actions}
+    
+
+    return json.dumps([metadata_record, sponsor_record, vote_record, bill_record])  
 
 
 def extractMetadata(url):
@@ -31,6 +79,9 @@ def extractMetadata(url):
         em_tag = doc.find("em", string=re.compile("Synopsis"))
         if em_tag:
             bill_description = em_tag.next_sibling.strip()
+            bill_description = bill_description.replace("\r", "")
+            bill_description = bill_description.replace("\n", "")
+            bill_description = re.sub(r'\s+', ' ', bill_description).strip()
 
         # extract status of the bill
         em_tag = doc.find("em", string=re.compile("Last action on Bill"))
@@ -52,6 +103,7 @@ def extractHistory(url):
         # looking for rows that start with pattern like JAN-01-2001
         action_text = doc.find_all(string=re.compile(pattern_date_letter))
         
+        
         if action_text:  
             for element in action_text[0].split("\n"):
                 bill_record = {}
@@ -62,11 +114,13 @@ def extractHistory(url):
                     new_date_string = date_object.strftime("%Y-%m-%d")
                     action = element.strip()[len(date_string):].strip()
                     bill_record["date"] = new_date_string
-                    bill_record["action"] = action
+                    bill_record["action"] = re.sub(r'\s+', ' ', action).strip() # Replace one or more whitespace characters with a single space
                     bill_history.append(bill_record)
                     
         # looking for rows that start with pattern like 98-01-22            
         action_text = doc.find_all(string=re.compile(pattern_date_number))
+        
+
         if action_text:
             for element in action_text[0].split("\n"):
                 bill_record = {}
@@ -77,11 +131,10 @@ def extractHistory(url):
                     new_date_string = date_object.strftime("%Y-%m-%d")
                     action = element.strip()[len(date_string):].strip()
                     bill_record["date"] = new_date_string
-                    bill_record["action"] = action
+                    bill_record["action"] = re.sub(r'\s+', ' ', action).strip() # Replace one or more whitespace characters with a single space
                     bill_history.append(bill_record)
-    
-    return bill_history
-    
+                    
+        return bill_history
     
 def extractSponsors(url):
     sponsor_list = []
@@ -122,6 +175,7 @@ def extractVotes(url):
     final_votes = {}
     vote_date = ""
     chamber = ""
+    vote_description = ""
     
     result = requests.get(url)
     if result:
@@ -135,12 +189,21 @@ def extractVotes(url):
         if date_found:    
             date_split = date_found[0].split("/")
             vote_date = date_split[2] + "-" + date_split[0] + "-" + date_split[1] 
+            
     else:
         #print(f"⚠️ Warning: {url} is broken. Skipping.")
         return None, None, None, None
     
     
     billVoteResult = requests.get(newurl)
+    # Split the content into lines
+    lines = billVoteResult.text.splitlines()
+
+    # Return the seventh line if it exists
+    if len(lines) >= 10:
+        vote_description = lines[9]
+    
+    
     doc = BeautifulSoup(billVoteResult.text, "html.parser")
     votes = doc.find("p", string=re.compile("YEAS"))
     for element in votes.string.split("\n"):
@@ -159,14 +222,27 @@ def extractVotes(url):
             final_votes.setdefault("YEAS", 0)
             final_votes.setdefault("NAYS", 0)
             final_votes.setdefault("PRESENT", 0)
-        
+
+            # Changing key name to be consistent with other states per Joe's comment
+            final_votes["Yea"] = final_votes.pop("YEAS")
+            final_votes["Nay"] = final_votes.pop("NAYS")
+            final_votes["NV"] = final_votes.pop("PRESENT")
+            
         # match individual votes
         match_individual = re.findall(pattern_individual, element)
         if match_individual:
             for element in match_individual:
-                roll_call[element[1]] = element[0] 
+                response = ""
+                if element[0] == "Y":
+                    response = "Yea"
+                elif element[0] == "N":
+                    response = "Nay"
+                elif element[0] == "E":
+                    response = "NV"
+                roll_call[element[1]] = response
+                
     
-    return final_votes, roll_call, vote_date, chamber
+    return final_votes, roll_call, vote_date, chamber, vote_description
 
 
 # Function to generate the history URL with padded bill number
@@ -217,4 +293,5 @@ def process_csv(infile, outfile):
 
 # Example usage
 if __name__ == "__main__":
-    print(extractHistory(url_number))
+    #print(scrape_bill("IL1997SB504", "90", "504"))
+    print(scrape_bill("IL1999HB100", "91", "100"))
