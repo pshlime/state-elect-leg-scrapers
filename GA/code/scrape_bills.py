@@ -8,6 +8,8 @@ import requests
 from hashlib import sha512
 import pandas as pd
 import json
+import re
+from datetime import datetime
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -28,6 +30,69 @@ SESSION_SITE_IDS = {
     "2005_06": 14,
     "2003_04": 11,
     "2001_02": 1,
+}
+
+action_code_map = {
+    "HI": None,
+    "SI": None,
+    "HH": ["introduction"],
+    "SH": ["introduction"],
+    "HPF": ["filing"],
+    "HDSAS": None,
+    "SPF": ["filing"],
+    "HSR": ["reading-2"],
+    "SSR": ["reading-2"],
+    "HFR": ["reading-1"],
+    "SFR": ["reading-1"],
+    "HRECM": ["withdrawal", "referral-committee"],
+    "SRECM": ["withdrawal", "referral-committee"],
+    "SW&C": ["withdrawal", "referral-committee"],
+    "HW&C": ["withdrawal", "referral-committee"],
+    "HRA": ["passage"],
+    "SRA": ["passage"],
+    "HPA": ["passage"],
+    "HRECO": None,
+    "SPA": ["passage"],
+    "HTABL": None,  # 'House Tabled' - what is this?
+    "SDHAS": None,
+    "HCFR": ["committee-passage-favorable"],
+    "SCFR": ["committee-passage-favorable"],
+    "HRAR": ["referral-committee"],
+    "SRAR": ["referral-committee"],
+    "STR": ["reading-3"],
+    "SAHAS": None,
+    "SE": ["passage"],
+    "SR": ["referral-committee"],
+    "HTRL": ["reading-3", "failure"],
+    "HTR": ["reading-3"],
+    "S3RLT": ["reading-3", "failure"],
+    "HASAS": None,
+    "S3RPP": None,
+    "STAB": None,
+    "SRECO": None,
+    "SAPPT": None,
+    "HCA": None,
+    "HNOM": None,
+    "HTT": None,
+    "STT": None,
+    "SRECP": None,
+    "SCRA": None,
+    "SNOM": None,
+    "S2R": ["reading-2"],
+    "H2R": ["reading-2"],
+    "SENG": ["passage"],
+    "HENG": ["passage"],
+    "HPOST": None,
+    "HCAP": None,
+    "SDSG": ["executive-signature"],
+    "SSG": ["executive-receipt"],
+    "Signed Gov": ["executive-signature"],
+    "HDSG": ["executive-signature"],
+    "HSG": ["executive-receipt"],
+    "EFF": None,
+    "HRP": None,
+    "STH": None,
+    "HTS": None,
 }
 
 url = "http://webservices.legis.ga.gov/GGAServices/%s/Service.svc?wsdl"
@@ -108,7 +173,7 @@ def get_bill_metadata(uuid, session, instrument):
         "uuid": uuid,
         "state": "GA",
         "session": session,
-        "state_bill_id": f"{instrument.DocumentType}{instrument.Number}",
+        "state_bill_id": f"{instrument.DocumentType} {instrument.Number}",
         "title": instrument.Caption,
         "description": instrument.Caption,
         "status": instrument.Status['Description'],
@@ -117,6 +182,56 @@ def get_bill_metadata(uuid, session, instrument):
 
     return metadata
 
+def get_bill_sponsors(uuid, session, authors):
+    """
+    Get bill sponsors from the instrument object and save it to a CSV file.
+    """
+    sponsors = []
+    for sponsor in authors[0]:
+        sponsor_name =sponsor["MemberDescription"]
+        sponsor_name = re.sub(r'\s\d+(st|nd|rd|th)$', '', sponsor_name)
+        sponsor_position = sponsor["Sequence"]
+        if sponsor_position == 1:
+            sponsor_type = "sponsor"
+        else:
+            sponsor_type = "cosponsor"
+
+        sponsors.append({
+            "sponsor_name": sponsor_name,
+            "sponsor_type": sponsor_type
+        })
+
+    sponsor_data = {
+            "uuid": uuid,
+            "state": "GA",
+            "session": session,
+            "state_bill_id": f"{instrument.DocumentType} {instrument.Number}",
+            "sponsors": [sponsors]
+        }
+    return sponsor_data
+
+def get_bill_history(uuid, session, status_history):
+    """
+    Get bill history from the instrument object and save it to a CSV file.
+    """
+    history = []
+    for status in status_history:
+        date = status["Date"].date()
+        action = f"{action_code_map[status["Code"]]} - {status["Description"]}"
+
+        history.append({
+            "date": date,
+            "action": action  
+        })
+
+    history_data = {
+            "uuid": uuid,
+            "state": "GA",
+            "session": session,
+            "state_bill_id": f"{instrument.DocumentType} {instrument.Number}",
+            "history": [history]
+        }
+    return history_data
 
 
 lservice = get_client("Legislation").service
@@ -141,6 +256,11 @@ for s in ['2001_02', '2003_04', '2005_06', '2007_08', '2009_10', '2011_12', '201
         instrument = backoff(lservice.GetLegislationDetail, api_id)
 
         bill_metadata = get_bill_metadata(UUID, s, instrument)
-        write_file(UUID, "metadata", bill_metadata)
+        write_file(UUID, "bill_metadata", bill_metadata)
 
+        sponsors = get_bill_sponsors(UUID, s, instrument.Authors)
+        write_file(UUID, "sponsors", sponsors)
+
+        bill_history = get_bill_history(UUID, s, instrument.StatusHistory)
+        write_file(UUID, "bill_history", bill_history)
         print('test')
