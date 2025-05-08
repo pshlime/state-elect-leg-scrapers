@@ -11,6 +11,7 @@ import json
 import re
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import os
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -252,8 +253,16 @@ def get_votes(uuid, session, votes, instrument, vservice):
         roll_call = vote_details.Votes["MemberVote"]
         roll_call_records = []
         for r in roll_call:
-            member_id = r['Member']['Id']
-            name = get_member(mservice, member_id)
+            member = r['Member']['Name']
+
+            vote_name_pattern = re.compile(r"(.*), (\d+(?:ST|ND|RD|TH))", re.IGNORECASE)
+            match = vote_name_pattern.search(member)
+            if member == 'VACANT':
+                logging.warning(f"No match for member string: {member}. Skipping.")
+                continue
+            else:
+                name, district = match.groups()
+
             response = r['MemberVoted']
             response = "NV" if response == "NotVoting" else str(r['MemberVoted'])
 
@@ -341,6 +350,10 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
     bill_list = pd.read_csv("GA/output/ga_legislation_by_session_merged.csv")
+    metadata_dir = "GA/output/bill_metadata"
+    existing_uuids = {filename.removesuffix(".json") for filename in os.listdir(metadata_dir)}
+
+    bill_list = bill_list[~bill_list["UUID"].isin(existing_uuids)]
     sessions = ['2001_02', '2003_04', '2005_06', '2007_08', '2009_10', '2011_12', '2013_14']
 
     all_text_links = []
