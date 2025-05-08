@@ -108,4 +108,4 @@ bills_to_process <- bind_rows(gs_nc_list, nc_master) |> distinct() |> filter(!(U
 bills_to_process <- bills_to_process |> mutate(pdf_path = future_pmap(list(UUID, session, bill_id), retrieve_text))
 bills_to_process <- bills_to_process |> unnest_longer(pdf_path)
 
-write_csv(bills_to_process, 'NC/nc_bill_text_files.csv')
+write_csv(bills_to_process, 'text/nc_bill_text_files.csv')
