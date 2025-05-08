@@ -175,6 +175,7 @@ def get_bill_metadata(uuid, session, instrument):
     """
     Get bill metadata from the instrument object.
     """
+    logging.info(f"Getting bill metadata for {uuid} ({session})")
     metadata = {
         "uuid": uuid,
         "state": "GA",
@@ -192,6 +193,7 @@ def get_bill_sponsors(uuid, session, authors):
     """
     Get bill sponsors from the instrument object.
     """
+    logging.info(f"Getting bill sponsors for {uuid} ({session})")
     sponsors = []
     for sponsor in authors[0]:
         sponsor_name =sponsor["MemberDescription"]
@@ -220,6 +222,7 @@ def get_bill_history(uuid, session, status_history):
     """
     Get bill history from the instrument object and save it to a CSV file.
     """
+    logging.info(f"Getting bill history for {uuid} ({session})")
     history = []
     for status in status_history:
         date = status["Date"].date().strftime("%Y-%m-%d")
@@ -243,6 +246,7 @@ def get_votes(uuid, session, votes):
     """
     Get votes from the instrument object.
     """
+    logging.info(f"Getting votes for {uuid} ({session})")
     for vote in votes:
         vote_details = backoff(vservice.GetVote, vote["VoteId"])
     
@@ -282,6 +286,7 @@ def get_bill_text_link(uuid, versions):
     Get bill text link from the instrument object.
     Returns a 1-row DataFrame with uuid, text_url, and text_version.
     """
+    logging.info(f"Getting bill text link for {uuid}")
     links = pd.DataFrame(columns=['uuid', 'text_url', 'text_version'])
     for version in versions:
         text_url = version['Url']
@@ -318,6 +323,8 @@ if __name__ == "__main__":
         for index, row in session_bills.iterrows():
             UUID = row["UUID"]
             api_id = row["ga_id"]
+
+            logging.info(f"Processing bill {UUID} ({api_id})")
 
             instrument = backoff(lservice.GetLegislationDetail, api_id)
 
