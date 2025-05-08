@@ -17,16 +17,56 @@ library(furrr)
 plan(multisession, workers = 11)
 
 # Functions
+clean_html <- function(html_content) {
+  html_content <- str_replace_all(html_content, "<p[^>]*>", " ")
+  html_content <- str_replace_all(html_content, "</p>", " ")
+  html_content <- str_replace_all(html_content, "<div[^>]*>", " ")
+  html_content <- str_replace_all(html_content, "</div>", " ")
+  html_content <- str_replace_all(html_content, "<a[^>]*>", " ")
+  html_content <- str_replace_all(html_content, "</a>", " ")
+  html_content <- str_replace_all(html_content, '<u>', '<u class="amendmentInsertedText">')
+  html_content <- str_replace_all(html_content, '<s>', '<strike class="amendmentDeletedText">')
+  html_content <- str_replace_all(html_content, '</s>', '</strike>')
+  html_content <- str_replace_all(html_content, "<span[^>]*>", " ")
+  html_content <- str_replace_all(html_content, "</span>", " ")
+  html_content <- str_replace_all(html_content, "<b[^>]*>", " ")
+  html_content <- str_replace_all(html_content, "</b>", " ")
+  html_content <- str_replace_all(html_content, "<i[^>]*>", " ")
+  html_content <- str_replace_all(html_content, "</i>", " ")
+  html_content <- str_replace_all(html_content, "<td[^>]*>", " ")
+  html_content <- str_replace_all(html_content, "<meta[^>]*>", " ")
+  html_content <- str_replace_all(html_content, "</td>", " ")
+  html_content <- str_replace_all(html_content, "</tr>", " ")
+  html_content <- str_replace_all(html_content, "<tr[^>]*>", " ")
+  html_content <- str_replace_all(html_content, "\\s+", " ")
+  html_content <- str_replace_all(html_content, "<center[^>]*>", " ")
+  html_content <- str_replace_all(html_content, "</center[^>]*>", " ")
+  html_content <- str_replace_all(html_content, "<table[^>]*>", " ")
+  html_content <- str_replace_all(html_content, "</table[^>]*>", " ")
+  html_content <- str_replace_all(html_content, "\\[", " ")
+  html_content <- str_replace_all(html_content, "\\]", " ")
+  html_content <- str_replace_all(html_content, "</u> <u>", " ")
+  html_content <- str_replace_all(html_content, "</u><u>", " ")
+  html_content <- str_replace_all(html_content, ' </pre>', ' ')
+  html_content <- str_replace_all(html_content, '<font size="[0-9]+">', '')
+  html_content <- str_replace_all(html_content, '</font>', '')
+  html_content <- str_replace_all(html_content, '<!-- field: [A-Za-z]+ -->', '')
+  html_content <- str_replace_all(html_content, '<!-- field: -->', '')
+  html_content <- str_replace_all(html_content, '</body>', '')
+  html_content <- str_trim(html_content)
+  return(html_content)
+}
+
 build_url <- function(session, bill_number){
-  glue("https://app.leg.wa.gov/billsummary?BillNumber={bill_number}&Year={session}#rollCallPopup")
+  glue("https://app.leg.wa.gov/bi/tld/documentsearchresults?biennium={session}&name={bill_number}&documentType=1")
 }
 
 retrieve_links <- function(url){
   page <- read_html(url)
   page |> 
-    html_elements('a[href*="lawfilesext"]') |> 
+    html_elements('#DocumentsReportTable a:nth-child(2)') |> 
     html_attr("href") |> 
-    str_subset(".pdf")
+    str_subset("Bills")
 }
 
 retrieve_text <- function(UUID, session, bill_number) {
@@ -42,11 +82,15 @@ retrieve_text <- function(UUID, session, bill_number) {
     dir_create(glue("{TEXT_OUTPUT_PATH}/{UUID}"))
     
     dest_file_paths <- lapply(links, function(link) {
-      file_name <- basename(link) |> str_remove_all("#page=[0-9]+")
-      dest_file_path <- glue("{TEXT_OUTPUT_PATH}/{UUID}/{file_name}")
+      file_name <- basename(link) |> str_remove_all(".htm$")
+      dest_file_path <- glue("{TEXT_OUTPUT_PATH}/{UUID}/{file_name}.txt")
       
       tryCatch({
-        download.file(link, dest_file_path, quiet = TRUE)
+        text <- read_html(link) |> html_element('body') |> as.character() |> clean_html() |> str_trim() |> str_squish()
+        text <- str_replace_all(text, "_", "")
+        
+        message("Writing HTML format text file: ", dest_file_path)
+        writeLines(text, dest_file_path)
       }, error = function(e) {
         message(glue("Error downloading {link}: {e$message}"))
       })
@@ -65,7 +109,6 @@ gs_wa_list <- googlesheets4::read_sheet('1jzW_WzyAAEFKxTGZeSmyIn9UQpXhHqsEb5zCBm
 
 gs_wa_list <- gs_wa_list |> 
   mutate(
-    session = as.character(year),
     bill_type = str_extract(bill_number, "^[A-Z]+"),
     bill_number = str_extract(bill_number, "[0-9]+$"),
     bill_type = case_match(
@@ -74,28 +117,31 @@ gs_wa_list <- gs_wa_list |>
       "HB" ~ "H",
       .default = bill_type
     ),
-    bill_id = glue("{bill_type}{bill_number}"),
-    UUID = glue("WA{session}{bill_type}{bill_number}")
+    session = case_match(
+      session,
+      "1995-1996" ~ '1995-96',
+      "1997-1998" ~ '1997-98',
+      "1999-2000" ~ '1999-00'
+    ),
+    UUID = glue("WA{year}{bill_type}{bill_number}")
   ) |>
   select(UUID, session, bill_number)
 
 wa_master <- vrleg_master_file |> 
-  filter(STATE == 'WA' & YEAR %in% c(1995:2015)) |>
+  filter(STATE == 'WA' & YEAR %in% c(1995:2014)) |>
   mutate(
     bill_id = str_remove_all(UUID, "WA"),
     session = str_extract(bill_id, "^[0-9]{4}"),
     bill_type = str_extract(bill_id, "[A-Z]+"),
     bill_number = str_extract(bill_id, "[0-9]+$"),
-    bill_id = glue("{bill_type}{bill_number}"),
     session = case_when(
-      session %in% c('2001','2002') ~ '2001',
-      session %in% c('2003','2004') ~ '2003',
-      session %in% c('2005','2006') ~ '2005',
-      session %in% c('2007','2008') ~ '2007',
-      session %in% c('2009','2010') ~ '2009',
-      session %in% c('2011','2012') ~ '2011',
-      session %in% c('2013','2014') ~ '2013',
-      session %in% c('2015','2016') ~ '2015'
+      session %in% c('2001','2002') ~ '2001-02',
+      session %in% c('2003','2004') ~ '2003-04',
+      session %in% c('2005','2006') ~ '2005-06',
+      session %in% c('2007','2008') ~ '2007-08',
+      session %in% c('2009','2010') ~ '2009-10',
+      session %in% c('2011','2012') ~ '2011-12',
+      session %in% c('2013','2014') ~ '2013-14'
     )
   ) |>
   select(UUID, session, bill_number)
