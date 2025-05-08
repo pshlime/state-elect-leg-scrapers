@@ -33,32 +33,40 @@ def scrape_bill(uuid, session, bill_number):
     if bill_title:
         metadata_record = {"uuid":uuid, "state":state, "session":year,
               "state_bill_id":state_bill_id, "title":bill_title, 
-              "description":bill_description, "status":bill_status, "state_url":history_url}
-   
+              "description":bill_description, "status":bill_status, "state_url":history_url} 
+        write_file(uuid, "bill_metadata", metadata_record)
+    
+    
     # Extract sponsors
     sponsor_list = extractSponsors(history_url)
     if sponsor_list:
         sponsor_record = {"uuid":uuid, "state":state, "session":year,
               "state_bill_id":state_bill_id, "sponsors":sponsor_list}
+        write_file(uuid, "sponsors", sponsor_record) 
+    
     
     # Extract votes
-    final_votes, roll_call, vote_date, chamber, vote_description = extractVotes(roll_call_url)
+    voteHistory = extractVotes(roll_call_url)
     
-    if final_votes:
-        # description is missing. need to figure out how to get that.
-        vote_record = {"uuid":uuid, "state":state, "session":year,
-              "state_bill_id":state_bill_id, "chamber":chamber, "date":vote_date,
-              "description": vote_description, "Yea":final_votes["Yea"], "Nay":final_votes["Nay"],
-              "NV":final_votes["NV"], "roll_call":roll_call}
+    if voteHistory:
+        # unpack vote history (there could be multiple rounds of voting)
+        # each voteHistory element contans [final_votes, roll_call, vote_date, chamber, vote_description]) 
+        for vh in voteHistory:
+            vote_record = {"uuid":uuid, "state":state, "session":year,
+                  "state_bill_id":state_bill_id, "chamber":vh[3], "date":vh[2],
+                  "description": vh[4], "Yea":vh[0]["yeas"], "Nay":vh[0]["nays"],
+                  "NV":vh[0]["other"], "roll_call":vh[1]}
+            filename = uuid + "_" + vh[2].replace("-", "")
+            write_file(filename, "votes", vote_record)     
         
     # Extract bill history
     bill_actions = extractHistory(status_url)
     if bill_actions:
         bill_record = {"uuid":uuid, "state":state, "session":year,
               "state_bill_id":state_bill_id, "bill_history":bill_actions}
-    
+        write_file(uuid, "bill_history", bill_record)    
 
-    return json.dumps([metadata_record, sponsor_record, vote_record, bill_record])  
+    #return json.dumps([metadata_record, sponsor_record, vote_record, bill_record])  
 
 
 def extractMetadata(url):
@@ -170,80 +178,82 @@ def extractVotes(url):
     pattern_individual = r"([YN])\s+([A-Z]+)+"
     pattern_date = r"\d{1,2}\/\d{1,2}\/\d{4}"
     pattern_chamber = r".*ROLL.*CALL"
-
-    roll_call = {}
+    chamber_mapping = {"house":"H", "senate":"S"}
+    voteHistory = []
+    roll_call = []
     final_votes = {}
     vote_date = ""
     chamber = ""
     vote_description = ""
+    votelinks = []
     
     result = requests.get(url)
     if result:
         doc = BeautifulSoup(result.text, "html.parser")
-        pagelink = doc.find('a', href=True) # Just extract the top URL. Ignore other URLs on this page
-        baseurl = url.rsplit('/', 1)[0]
-        newurl = baseurl + "/" + pagelink['href']
         
-        # match date which is stored in the <a href> tage
-        date_found = re.findall(pattern_date, pagelink.string)
-        if date_found:    
-            date_split = date_found[0].split("/")
-            vote_date = date_split[2] + "-" + date_split[0] + "-" + date_split[1] 
+        #find all bill vote links on this page
+        votelinks = doc.find_all('a', href=True) 
+        for pagelink in votelinks:    
+            baseurl = url.rsplit('/', 1)[0]
+            newurl = baseurl + "/" + pagelink['href']
             
+            # match date which is stored in the <a href> tage
+            date_found = re.findall(pattern_date, pagelink.string)
+            if date_found:    
+                date_split = date_found[0].split("/")
+                vote_date = date_split[2] + "-" + date_split[0] + "-" + date_split[1]
+            
+            billVoteResult = requests.get(newurl)
+            # Split the content into lines
+            lines = billVoteResult.text.splitlines()
+
+            # Return the seventh line if it exists
+            if len(lines) >= 10:
+                vote_description = lines[9].strip()
+                        
+            doc = BeautifulSoup(billVoteResult.text, "html.parser")
+            votes = doc.find("p", string=re.compile("YEAS"))
+            for element in votes.string.split("\n"):
+                # match chamber
+                match_chamber = re.findall(pattern_chamber, element)
+                if match_chamber:
+                    chamber = match_chamber[0].split()[0]
+                    chamber = chamber_mapping[chamber.lower()]
+             
+                # match total votes
+                match_total = re.search(pattern_total, element)
+                if match_total:
+                    pairs_total = dict(re.findall(r'(\d+)\s+([A-Z]+)', match_total.group()))
+                    final_votes = {v:int(k) for k, v in pairs_total.items()}
+                    
+                    # in case any of YEAS, NAYS, PRESENT is missing from the page. 
+                    final_votes.setdefault("YEAS", 0)
+                    final_votes.setdefault("NAYS", 0)
+                    final_votes.setdefault("PRESENT", 0)
+
+                    # Changing key name to be consistent with other states per Joe's comment
+                    final_votes["yeas"] = final_votes.pop("YEAS")
+                    final_votes["nays"] = final_votes.pop("NAYS")
+                    final_votes["other"] = final_votes.pop("PRESENT")
+                    
+                # match individual votes
+                match_individual = re.findall(pattern_individual, element)
+                if match_individual:
+                    for element in match_individual:
+                        response = ""
+                        if element[0] == "Y":
+                            response = "Yea"
+                        elif element[0] == "N":
+                            response = "Nay"
+                        elif element[0] == "E":
+                            response = "NV"
+                        roll_call.append({"name":element[1].capitalize(), "response":response})
+            voteHistory.append([final_votes, roll_call, vote_date, chamber, vote_description])                       
     else:
         #print(f"⚠️ Warning: {url} is broken. Skipping.")
         return None, None, None, None
-    
-    
-    billVoteResult = requests.get(newurl)
-    # Split the content into lines
-    lines = billVoteResult.text.splitlines()
 
-    # Return the seventh line if it exists
-    if len(lines) >= 10:
-        vote_description = lines[9]
-    
-    
-    doc = BeautifulSoup(billVoteResult.text, "html.parser")
-    votes = doc.find("p", string=re.compile("YEAS"))
-    for element in votes.string.split("\n"):
-        # match chamber
-        match_chamber = re.findall(pattern_chamber, element)
-        if match_chamber:
-            chamber = match_chamber[0].split()[0]
-     
-        # match total votes
-        match_total = re.search(pattern_total, element)
-        if match_total:
-            pairs_total = dict(re.findall(r'(\d+)\s+([A-Z]+)', match_total.group()))
-            final_votes = {v:int(k) for k, v in pairs_total.items()}
-            
-            # in case any of YEAS, NAYS, PRESENT is missing from the page. 
-            final_votes.setdefault("YEAS", 0)
-            final_votes.setdefault("NAYS", 0)
-            final_votes.setdefault("PRESENT", 0)
-
-            # Changing key name to be consistent with other states per Joe's comment
-            final_votes["Yea"] = final_votes.pop("YEAS")
-            final_votes["Nay"] = final_votes.pop("NAYS")
-            final_votes["NV"] = final_votes.pop("PRESENT")
-            
-        # match individual votes
-        match_individual = re.findall(pattern_individual, element)
-        if match_individual:
-            for element in match_individual:
-                response = ""
-                if element[0] == "Y":
-                    response = "Yea"
-                elif element[0] == "N":
-                    response = "Nay"
-                elif element[0] == "E":
-                    response = "NV"
-                roll_call[element[1]] = response
-                
-    
-    return final_votes, roll_call, vote_date, chamber, vote_description
-
+    return voteHistory
 
 # Function to generate the history URL with padded bill number
 def generate_history_url(bill_id, session):
@@ -270,28 +280,23 @@ def generate_history_url(bill_id, session):
     roll_call_url = f"https://www.ilga.gov/legislation/votehistory/hrollcalls{session_str}/{session_str}0{state_bill_id}.html"
     status_url = f"https://www.ilga.gov/legislation/legisnet{session_str}/status/{session_str}0{state_bill_id}.html"
 
-    
     return history_url, roll_call_url, status_url
 
-# Function to process the CSV and generate links
-def process_csv(infile, outfile):
-    with open(infile, newline='') as csvfile, open(outfile, 'w', newline='') as summaryfile:
-        writer = csv.writer(summaryfile)
-        csvreader = csv.reader(csvfile, delimiter=',')
-        next(csvreader)
-        for row in csvreader:
-            if len(row) >= 2:
-                # Extract the session and bill ID
-                session = row[0].split('-')[1]  # Extract the session from the first column (e.g., '90' from '1997-90')
-                bill_id = row[1]  # Bill ID (e.g., 'SB-231')
-                
-                # Generate the history URL
-                history_url, roll_call_url, status_url = generate_history_url(bill_id, session)
-                writer.writerow([bill_id, history_url, roll_call_url])
-    
-                #print(f"Bill ID: {bill_id}, History URL: {history_url}")
-
+# write extracted info to a file
+def write_file(file_name, directory, data):
+    with open(f'IL/output/{directory}/{file_name}.json', 'w') as f:
+        json.dump(data, f, indent=4)
+        
 # Example usage
 if __name__ == "__main__":
     #print(scrape_bill("IL1997SB504", "90", "504"))
-    print(scrape_bill("IL1999HB100", "91", "100"))
+    #(scrape_bill("IL1999HB100", "91", "100"))
+    #roll_call_url = "https://www.ilga.gov/legislation/votehistory/hrollcalls91/910HB1234.html"
+    #roll_call_url = "https://www.ilga.gov/legislation/votehistory/hrollcalls91/910HB0100.html"
+
+    #voteHistory = extractVotes(roll_call_url)
+    uuid = "IL1999HB1234"
+    session = 91
+    bill_number = "1234"
+    
+    scrape_bill(uuid, session, bill_number)
