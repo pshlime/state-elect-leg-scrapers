@@ -170,10 +170,6 @@ def write_file(file_name, directory, data):
     with open(f'GA/output/{directory}/{file_name}.json', 'w') as f:
         json.dump(data, f, indent=4)
 
-def get_member(mservice, member_id):
-    mem = backoff(mservice.GetMember, member_id)
-    return f"{mem.Name['FamilyName']}, {mem.Name['First']}"
-
 def get_bill_metadata(uuid, session, instrument):
     """
     Get bill metadata from the instrument object.
@@ -245,7 +241,7 @@ def get_bill_history(uuid, session, status_history, instrument):
         }
     return history_data
 
-def get_votes(uuid, session, votes, instrument, vservice, mservice):
+def get_votes(uuid, session, votes, instrument, vservice):
     """
     Get votes from the instrument object.
     """
@@ -312,7 +308,6 @@ def process_session(s, bill_list):
     sid = SESSION_SITE_IDS[s]
     lservice = get_client("Legislation").service
     vservice = get_client("Votes").service
-    mservice = get_client("Members").service
 
     text_links_local = []
 
@@ -334,7 +329,7 @@ def process_session(s, bill_list):
 
         if instrument.Votes is not None and 'VoteListing' in instrument.Votes:
             votes = instrument.Votes['VoteListing']
-            get_votes(UUID, s, votes, instrument, vservice, mservice)
+            get_votes(UUID, s, votes, instrument, vservice)
 
         text_link_df = get_bill_text_link(UUID, instrument.Versions['DocumentDescription'])
         text_links_local.append(text_link_df)
