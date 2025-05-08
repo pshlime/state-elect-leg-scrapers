@@ -10,6 +10,7 @@ import pandas as pd
 import json
 import re
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -191,7 +192,7 @@ def get_bill_metadata(uuid, session, instrument):
 
     return metadata
 
-def get_bill_sponsors(uuid, session, authors):
+def get_bill_sponsors(uuid, session, authors, instrument):
     """
     Get bill sponsors from the instrument object.
     """
@@ -220,7 +221,7 @@ def get_bill_sponsors(uuid, session, authors):
         }
     return sponsor_data
 
-def get_bill_history(uuid, session, status_history):
+def get_bill_history(uuid, session, status_history, instrument):
     """
     Get bill history from the instrument object and save it to a CSV file.
     """
@@ -244,7 +245,7 @@ def get_bill_history(uuid, session, status_history):
         }
     return history_data
 
-def get_votes(uuid, session, votes):
+def get_votes(uuid, session, votes, instrument, vservice, mservice):
     """
     Get votes from the instrument object.
     """
@@ -306,43 +307,59 @@ def get_bill_text_link(uuid, versions):
     # In case versions is empty
     return links
 
-if __name__ == "__main__":
+def process_session(s, bill_list):
+    session_bills = bill_list[bill_list["session"] == s]
+    sid = SESSION_SITE_IDS[s]
     lservice = get_client("Legislation").service
     vservice = get_client("Votes").service
     mservice = get_client("Members").service
-    lsource = get_url("Legislation")
-    msource = get_url("Members")
-    vsource = get_url("Votes")
 
-    text_links = pd.DataFrame(columns=['uuid', 'text_url', 'text_version'])
+    text_links_local = []
+
+    for index, row in session_bills.iterrows():
+        UUID = row["UUID"]
+        api_id = row["ga_id"]
+        logging.info(f"[{s}] Processing bill {UUID} ({api_id})")
+
+        instrument = backoff(lservice.GetLegislationDetail, api_id)
+
+        bill_metadata = get_bill_metadata(UUID, s, instrument)
+        write_file(UUID, "bill_metadata", bill_metadata)
+
+        sponsors = get_bill_sponsors(UUID, s, instrument.Authors, instrument)
+        write_file(UUID, "sponsors", sponsors)
+
+        bill_history = get_bill_history(UUID, s, instrument.StatusHistory['StatusListing'], instrument)
+        write_file(UUID, "bill_history", bill_history)
+
+        if instrument.Votes is not None and 'VoteListing' in instrument.Votes:
+            votes = instrument.Votes['VoteListing']
+            get_votes(UUID, s, votes, instrument, vservice, mservice)
+
+        text_link_df = get_bill_text_link(UUID, instrument.Versions['DocumentDescription'])
+        text_links_local.append(text_link_df)
+
+    return pd.concat(text_links_local, ignore_index=True)
+
+# === Main Execution ===
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
     bill_list = pd.read_csv("GA/output/ga_legislation_by_session_merged.csv")
+    sessions = ['2001_02', '2003_04', '2005_06', '2007_08', '2009_10', '2011_12', '2013_14']
 
-    for s in ['2001_02', '2003_04', '2005_06', '2007_08', '2009_10', '2011_12', '2013_14']:
-        session_bills = bill_list[bill_list["session"] == s]
-        sid = SESSION_SITE_IDS[s]
-        legislation = backoff(lservice.GetLegislationForSession, sid)["LegislationIndex"]
-        
-        for index, row in session_bills.iterrows():
-            UUID = row["UUID"]
-            api_id = row["ga_id"]
+    all_text_links = []
 
-            logging.info(f"Processing bill {UUID} ({api_id})")
+    with ThreadPoolExecutor(max_workers=7) as executor:
+        future_to_session = {executor.submit(process_session, s, bill_list): s for s in sessions}
 
-            instrument = backoff(lservice.GetLegislationDetail, api_id)
+        for future in as_completed(future_to_session):
+            s = future_to_session[future]
+            try:
+                text_links_df = future.result()
+                all_text_links.append(text_links_df)
+            except Exception as exc:
+                logging.error(f"{s} generated an exception: {exc}")
 
-            bill_metadata = get_bill_metadata(UUID, s, instrument)
-            write_file(UUID, "bill_metadata", bill_metadata)
-
-            sponsors = get_bill_sponsors(UUID, s, instrument.Authors)
-            write_file(UUID, "sponsors", sponsors)
-
-            bill_history = get_bill_history(UUID, s, instrument.StatusHistory['StatusListing'])
-            write_file(UUID, "bill_history", bill_history)
-
-            if instrument.Votes is not None and 'VoteListing' in instrument.Votes:
-                votes = instrument.Votes['VoteListing']
-                get_votes(UUID, s, votes)
-
-            text_links = pd.concat([text_links, get_bill_text_link(UUID, instrument.Versions['DocumentDescription'])], ignore_index=True)
-
-    text_links.to_csv("GA/output/ga_bill_text_links.csv", index=False)
+    final_text_links = pd.concat(all_text_links, ignore_index=True)
+    final_text_links.to_csv("GA/output/ga_bill_text_links.csv", index=False)
