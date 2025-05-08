@@ -1,6 +1,6 @@
 ##################################################
 ## Project: State Election Legislation Scrapers
-## Script purpose: Retrieve NC bill links
+## Script purpose: Retrieve WA Text
 ## Date: May 2025
 ## Author: Joe Loffredo
 ##################################################
@@ -16,25 +16,24 @@ library(furrr)
 
 plan(multisession, workers = 11)
 
-build_url <- function(session, bill_id){
-  glue("https://www.ncleg.gov/BillLookUp/{session}/{bill_id}")
+# Functions
+build_url <- function(session, bill_number){
+  glue("https://app.leg.wa.gov/billsummary?BillNumber={bill_number}&Year={session}#rollCallPopup")
 }
 
 retrieve_links <- function(url){
   page <- read_html(url)
-  links <- page |> 
-    html_nodes(".card-body a") |> 
+  page |> 
+    html_elements('a[href*="lawfilesext"]') |> 
     html_attr("href") |> 
     str_subset(".pdf")
-  
-  links <- glue("https://www.ncleg.gov{links}")
 }
 
-retrieve_text <- function(UUID, session, bill_id) {
+retrieve_text <- function(UUID, session, bill_number) {
   message(UUID)
   
-  TEXT_OUTPUT_PATH <- '/Users/josephloffredo/MIT Dropbox/Joseph Loffredo/election_bill_text/data/north_carolina'
-  url <- build_url(session, bill_id)
+  TEXT_OUTPUT_PATH <- '/Users/josephloffredo/MIT Dropbox/Joseph Loffredo/election_bill_text/data/washington'
+  url <- build_url(session, bill_number)
   links <- retrieve_links(url)
   
   if (length(links) == 0) {
@@ -43,7 +42,7 @@ retrieve_text <- function(UUID, session, bill_id) {
     dir_create(glue("{TEXT_OUTPUT_PATH}/{UUID}"))
     
     dest_file_paths <- lapply(links, function(link) {
-      file_name <- basename(link)
+      file_name <- basename(link) |> str_remove_all("#page=[0-9]+")
       dest_file_path <- glue("{TEXT_OUTPUT_PATH}/{UUID}/{file_name}")
       
       tryCatch({
@@ -62,11 +61,11 @@ retrieve_text <- function(UUID, session, bill_id) {
 
 # Build list of UUIDs
 vrleg_master_file <- readRDS("~/Desktop/GitHub/election-roll-call/bills/vrleg_master_file.rds")
-gs_nc_list <- googlesheets4::read_sheet('1LRM6Dqrh8i4B8_NyfHBd589IkIvBPYjTY4wt42Ri4Fo') |> janitor::clean_names()
+gs_wa_list <- googlesheets4::read_sheet('1jzW_WzyAAEFKxTGZeSmyIn9UQpXhHqsEb5zCBmni228') |> janitor::clean_names()
 
-gs_nc_list <- gs_nc_list |> 
+gs_wa_list <- gs_wa_list |> 
   mutate(
-    session = as.character(session),
+    session = as.character(year),
     bill_type = str_extract(bill_number, "^[A-Z]+"),
     bill_number = str_extract(bill_number, "[0-9]+$"),
     bill_type = case_match(
@@ -76,14 +75,14 @@ gs_nc_list <- gs_nc_list |>
       .default = bill_type
     ),
     bill_id = glue("{bill_type}{bill_number}"),
-    UUID = glue("NC{session}{bill_type}{bill_number}")
+    UUID = glue("WA{session}{bill_type}{bill_number}")
   ) |>
-  select(UUID, session, bill_id)
+  select(UUID, session, bill_number)
 
-nc_master <- vrleg_master_file |> 
-  filter(STATE == 'NC' & YEAR %in% c(1995:2015)) |>
+wa_master <- vrleg_master_file |> 
+  filter(STATE == 'WA' & YEAR %in% c(1995:2015)) |>
   mutate(
-    bill_id = str_remove_all(UUID, "NC"),
+    bill_id = str_remove_all(UUID, "WA"),
     session = str_extract(bill_id, "^[0-9]{4}"),
     bill_type = str_extract(bill_id, "[A-Z]+"),
     bill_number = str_extract(bill_id, "[0-9]+$"),
@@ -99,13 +98,13 @@ nc_master <- vrleg_master_file |>
       session %in% c('2015','2016') ~ '2015'
     )
   ) |>
-  select(UUID, session, bill_id)
-  
+  select(UUID, session, bill_number)
 
-already_processed <- dir_ls('/Users/josephloffredo/MIT Dropbox/Joseph Loffredo/election_bill_text/data/north_carolina') |> basename()
-bills_to_process <- bind_rows(gs_nc_list, nc_master) |> distinct() |> filter(!(UUID %in% already_processed))
 
-bills_to_process <- bills_to_process |> mutate(pdf_path = future_pmap(list(UUID, session, bill_id), retrieve_text))
+already_processed <- dir_ls('/Users/josephloffredo/MIT Dropbox/Joseph Loffredo/election_bill_text/data/washington') |> basename()
+bills_to_process <- bind_rows(gs_wa_list, wa_master) |> distinct() |> filter(!(UUID %in% already_processed))
+
+bills_to_process <- bills_to_process |> mutate(pdf_path = future_pmap(list(UUID, session, bill_number), retrieve_text))
 bills_to_process <- bills_to_process |> unnest_longer(pdf_path)
 
-write_csv(bills_to_process, 'NC/nc_bill_text_files.csv')
+write_csv(bills_to_process, 'text/wa_bill_text_files.csv')
