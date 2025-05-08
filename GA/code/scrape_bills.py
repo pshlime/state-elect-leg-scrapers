@@ -127,11 +127,11 @@ def backoff(function, *args, **kwargs):
                 raise ValueError("Roll Call Vote isn't published")
 
             backoff = (attempt + 1) * 15
-            log.warning(
+            logging.warning(
                 "[attempt %s]: Connection broke. Backing off for %s seconds."
                 % (attempt, backoff)
             )
-            log.info(str(e))
+            logging.info(str(e))
             time.sleep(backoff)
 
     raise ValueError("The server's not playing nice. We can't keep slamming it.")
