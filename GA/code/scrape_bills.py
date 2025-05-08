@@ -78,6 +78,7 @@ action_code_map = {
     "SRECP": None,
     "SCRA": None,
     "SNOM": None,
+    "HRECL": None,
     "S2R": ["reading-2"],
     "H2R": ["reading-2"],
     "SENG": ["passage"],
