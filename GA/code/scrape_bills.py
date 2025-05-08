@@ -7,11 +7,28 @@ import suds
 import requests
 from hashlib import sha512
 import pandas as pd
+import json
 
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-logging.getLogger("suds").setLevel(logging.WARNING)
-log = logging.getLogger("openstates")
-
+SESSION_SITE_IDS = {
+    "2023_24": 1031,
+    "2021_ss": 1030,
+    "2021_22": 1029,
+    "2020_ss": "1027",
+    "2019_20": 27,
+    "2018_ss": 26,
+    "2017_18": 25,
+    "2015_16": 24,
+    "2013_14": 23,
+    "2011_ss": 22,
+    "2011_12": 21,
+    "2009_10": 20,
+    "2007_08": 18,
+    "2005_06": 14,
+    "2003_04": 11,
+    "2001_02": 1,
+}
 
 url = "http://webservices.legis.ga.gov/GGAServices/%s/Service.svc?wsdl"
 
@@ -50,28 +67,6 @@ def backoff(function, *args, **kwargs):
     raise ValueError("The server's not playing nice. We can't keep slamming it.")
 
 
-# available via the session dropdown on
-# http://www.legis.ga.gov/Legislation/en-US/Search.aspx
-SESSION_SITE_IDS = {
-    "2023_24": 1031,
-    "2021_ss": 1030,
-    "2021_22": 1029,
-    "2020_ss": "1027",
-    "2019_20": 27,
-    "2018_ss": 26,
-    "2017_18": 25,
-    "2015_16": 24,
-    "2013_14": 23,
-    "2011_ss": 22,
-    "2011_12": 21,
-    "2009_10": 20,
-    "2007_08": 18,
-    "2005_06": 14,
-    "2003_04": 11,
-    "2001_02": 1,
-}
-
-
 def get_key(timestamp):
     # this comes out of Georgia's javascript
     # 1) part1 (and the overall format) comes from
@@ -101,6 +96,28 @@ def get_token():
     )
     return "Bearer " + requests.get(token_url).json()
 
+def write_file(file_name, directory, data):
+    with open(f'GA/output/{directory}/{file_name}.json', 'w') as f:
+        json.dump(data, f, indent=4)
+
+def get_bill_metadata(uuid, session, instrument):
+    """
+    Get bill metadata from the instrument object and save it to a CSV file.
+    """
+    metadata = {
+        "uuid": uuid,
+        "state": "GA",
+        "session": session,
+        "state_bill_id": f"{instrument.DocumentType}{instrument.Number}",
+        "title": instrument.Caption,
+        "description": instrument.Caption,
+        "status": instrument.Status['Description'],
+        "state_url": f"https://www.legis.ga.gov/legislation/{instrument.Id}",
+    }
+
+    return metadata
+
+
 
 lservice = get_client("Legislation").service
 vservice = get_client("Votes").service
@@ -109,19 +126,21 @@ lsource = get_url("Legislation")
 msource = get_url("Members")
 vsource = get_url("Votes")
 
-all_bills = []
+text_links = []
+bill_list = pd.read_csv("GA/output/ga_legislation_by_session_merged.csv")
 
-for s in ['2001_02', '2003_04', '2005_06', '2007_08', '2009_10', '2011_12', '2011_ss', '2013_14']:
+for s in ['2001_02', '2003_04', '2005_06', '2007_08', '2009_10', '2011_12', '2013_14']:
+    session_bills = bill_list[bill_list["session"] == s]
     sid = SESSION_SITE_IDS[s]
     legislation = backoff(lservice.GetLegislationForSession, sid)["LegislationIndex"]
     
-    for entry in legislation:
-        row = dict(entry)
-        row["Session"] = s  # Add session label
-        all_bills.append(row)
+    for index, row in session_bills.iterrows():
+        UUID = row["UUID"]
+        api_id = row["ga_id"]
 
-# Convert all rows to a DataFrame at once
-df = pd.DataFrame(all_bills)
+        instrument = backoff(lservice.GetLegislationDetail, api_id)
 
-# Save to CSV
-df.to_csv("ga_legislation_by_session.csv", index=False)
+        bill_metadata = get_bill_metadata(UUID, s, instrument)
+        write_file(UUID, "metadata", bill_metadata)
+
+        print('test')
