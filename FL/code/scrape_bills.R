@@ -67,6 +67,7 @@ clean_html <- function(html_content) {
 }
 
 build_url <- function(session, bill_number){
+  message('building url')
   # Pull just number
   bill_number <- str_extract(bill_number, "\\d+")
   glue("https://www.flsenate.gov/Session/Bill/{session}/{bill_number}")
@@ -74,6 +75,7 @@ build_url <- function(session, bill_number){
 
 
 get_bill_metadata <- function(UUID, session, bill_number, state_url, state_html){
+  message('getting bill metadata')
   OUTPUT_PATH <- 'FL/output'
   
   title <- state_html |> html_nodes("h2") |> html_text() |> str_squish() |> tail(1)
@@ -103,6 +105,7 @@ get_bill_metadata <- function(UUID, session, bill_number, state_url, state_html)
 }
 
 get_sponsors <- function(UUID, session, bill_number, state_html){
+  message('getting sponsors')
   OUTPUT_PATH <- 'FL/output'
   
   sponsors_list <- state_html |> html_node("h2+ p") |> html_text() |> str_trim() |> str_squish()
@@ -147,6 +150,7 @@ get_sponsors <- function(UUID, session, bill_number, state_html){
 }
 
 get_bill_history <- function(UUID, session, bill_number, state_html){
+  message('getting bill history')
   OUTPUT_PATH <- 'FL/output'
   
   history_df <- state_html |>
@@ -179,6 +183,7 @@ get_bill_history <- function(UUID, session, bill_number, state_html){
 }
 
 get_votes <- function(UUID, session, bill_number, state_html){
+  message('getting votes')
   OUTPUT_PATH <- 'FL/output'
   # Check to see if any votes
   if(is_empty(state_html |> html_node("h4#Votes + table.tbl"))){
@@ -281,8 +286,6 @@ get_votes <- function(UUID, session, bill_number, state_html){
             other = sum(!(response %in% c('Yea','Nay')), na.rm = TRUE)
           )
         
-        file_delete(dir_ls(glue("FL/output/scratch_files/")))
-        
         return(list(description = description, vote_data = vote_data, counts = counts))
       }
     }
@@ -314,6 +317,7 @@ get_votes <- function(UUID, session, bill_number, state_html){
 }
 
 get_bill_text <- function(UUID, state_html){
+  message("getting bill text")
   OUTPUT_PATH <- '/Users/josephloffredo/MIT Dropbox/Joseph Loffredo/election_bill_text/data/florida'
   
   bill_text_info <- state_html |> html_node("#tabBodyBillText") |> html_table(fill = T) |> 
@@ -365,10 +369,7 @@ get_bill_text <- function(UUID, state_html){
         str_squish()
       
       # Debugging logs
-      message("Writing plain text file: ", raw_file_name)
       writeLines(raw_text, glue("{download_path}/{raw_file_name}"))
-      
-      message("Writing HTML format text file: ", html_file_name)
       writeLines(html_format, glue("{download_path}/{html_file_name}"))
     }
     
@@ -378,6 +379,7 @@ get_bill_text <- function(UUID, state_html){
 }
 
 scrape_bill <- function(UUID, session = NA, bill_number = NA){
+  message(UUID)
   state_url <- build_url(session, bill_number)
   state_html <- read_html(state_url)
   
@@ -435,6 +437,7 @@ fl_master_file <- vrleg_master_file |>
     bill_number = str_extract(bill_number, "[0-9]+$"),
     bill_number = glue("{bill_type}{bill_number}")
   ) |>
+  filter(!is.na(bill_type)) |>
   select(UUID, session, bill_number)
 
 bills_to_process <- bind_rows(fl_master_file, gs_list)
