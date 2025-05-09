@@ -284,4 +284,4 @@ def collect_bill_data(uuid, session_year, state_bill_id):
 # Example usage:
 if __name__ == "__main__":
     # bill_data = collect_bill_data_1997_2001("UT2008HB71", "2008", "HB0071")
-    print(collect_bill_data("UT2008HB71", "2008", "HB0071"))
+    print(collect_bill_data("UT2000S156", "2000", "SB0156"))
