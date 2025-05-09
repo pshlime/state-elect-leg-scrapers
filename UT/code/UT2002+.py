@@ -241,8 +241,7 @@ def get_votes(uuid,session_year,state_bill_id):
     other = text_data[text_data.index("VOTING")+2]
 
     #getting roll call
-    name = []
-    response = []
+    roll_call = []
     roll_idx = text_data.index("YEAS")+3
     r= "Yea"
     while roll_idx <= len(text_data)-1:
@@ -251,9 +250,12 @@ def get_votes(uuid,session_year,state_bill_id):
             r = "Nay"
         if text_data[roll_idx] == "ABSENT":
             roll_idx += 6
-            r = "Absent / NV"
-        name.append(text_data[roll_idx])
-        response.append(r)
+            r = "Absent"
+        
+        roll_call.append({
+            "name": text_data[roll_idx],
+            "response": r
+        })
         roll_idx +=1
 
     votes = {
@@ -267,7 +269,7 @@ def get_votes(uuid,session_year,state_bill_id):
         "yeas": yeas,
         "nays":nays,
         "other":other,
-        "roll_call": {"name":name,"response":response}
+        "roll_call": [roll_call]
     }
     return votes
 
@@ -301,4 +303,4 @@ def collect_bill_data(uuid, session_year, state_bill_id):
 # Example usage:
 if __name__ == "__main__":
     # bill_data = collect_bill_data_1997_2001("UT2008HB71", "2008", "HB0071")
-    print(collect_bill_data("UT2000S156", "2000", "SB0156"))
+    print(collect_bill_data("UT2009S24", "2009", "SB0024"))
