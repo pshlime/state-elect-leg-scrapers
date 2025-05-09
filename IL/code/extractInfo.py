@@ -189,7 +189,7 @@ def extractSponsors(url):
 # Function to extract votes and roll call 
 def extractVotes(url):
     logging.info(f"Extracting votes from {url}")
-    
+
     pattern_total = r".*YEAS.*NAYS.*"
     pattern_individual = r"([YN])\s+([A-Z]+)+"
     pattern_date = r"\d{1,2}\/\d{1,2}\/\d{4}"
@@ -208,10 +208,16 @@ def extractVotes(url):
         doc = BeautifulSoup(result.text, "html.parser")
         
         #find all bill vote links on this page
-        votelinks = doc.find_all('a', href=True) 
+        votelinks = [
+            a for a in doc.find_all('a', href=True)
+            if not a['href'].startswith("javascript:") and a['href'] != "/"
+        ]
         for pagelink in votelinks:    
             baseurl = url.rsplit('/', 1)[0]
-            newurl = baseurl + "/" + pagelink['href']
+            if "/legislation/votehistory" in pagelink['href']:
+                newurl = "https://ilga.gov" + pagelink['href']
+            else:
+                newurl = baseurl + "/" + pagelink['href']
             
             # match date which is stored in the <a href> tage
             date_found = re.findall(pattern_date, pagelink.string)
@@ -224,12 +230,23 @@ def extractVotes(url):
             lines = billVoteResult.text.splitlines()
 
             # Return the seventh line if it exists
-            if len(lines) >= 10:
+            if len(lines) >= 10 and "/legislation/votehistory" in pagelink['href']:
+                vote_description = lines[12].strip()
+            else:
                 vote_description = lines[9].strip()
                         
             doc = BeautifulSoup(billVoteResult.text, "html.parser")
-            votes = doc.find("p", string=re.compile("YEAS"))
-            for element in votes.string.split("\n"):
+            
+            if "/legislation/votehistory" in pagelink['href']:
+                # find all vote results
+                votes = doc.find("pre")
+                votes = votes.get_text()
+                votes = votes.split("\n")
+            else:
+                votes = doc.find("p", string=re.compile("YEAS"))
+                votes = votes.string.split("\n")
+
+            for element in votes:
                 # match chamber
                 match_chamber = re.findall(pattern_chamber, element)
                 if match_chamber:
@@ -312,10 +329,7 @@ if __name__ == "__main__":
 
     # Filter bill_list to only 91st and 92nd sessions
     # and exclude bills that have already been processed
-    bill_list = bill_list[
-        bill_list["session"].isin([91, 92]) &
-        ~bill_list["UUID"].isin(existing_uuids)
-    ]
+    bill_list = bill_list[bill_list["session"].isin([91, 92]) & ~bill_list["UUID"].isin(existing_uuids)]
 
     bill_rows = bill_list[["UUID", "session", "bill_number"]].to_dict(orient="records")
     # Parallel execution
