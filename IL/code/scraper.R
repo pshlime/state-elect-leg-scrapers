@@ -1,13 +1,16 @@
 library(tidyverse)
 library(jsonlite)
 library(glue)
+library(furrr)
+
+plan(multisession, workers = 11)
 
 rm(list = ls())
 gc()
 
 # Dropbox path for Illinois data
-DROPBOX_PATH <- '/path/to/your/Illinois/data'  # Change this to where your Illinois files are stored
-OUTPUT_PATH <- 'Illinois/output'  # Output directory for Illinois data
+DROPBOX_PATH <- '/Users/josephloffredo/MIT Dropbox/Joseph Loffredo/previous_leg_files/IL'  # Change this to where your Illinois files are stored
+OUTPUT_PATH <- 'IL/output'  # Output directory for Illinois data
 
 # Wrangle OpenStates ------------------------------------------------------
 #### Sponsors ####
@@ -47,10 +50,7 @@ most_recent_action <- bill_actions_df |>
     last_action_date = date,
     last_action_description = case_when(
       classification == "['became-law']" ~ glue("Enacted - {description}"),
-      str_detect(description, "RATIFIED") ~ glue("Enacted - {description}"),
-      str_detect(description, "^CH. SL") ~ glue("Enacted - {description}"),
-      str_detect(description, "^CH. RES") ~ glue("Enacted - {description}"),
-      str_detect(description, "became law") ~ glue("Enacted - {description}"),  # Illinois specific check
+      str_detect(description, "Public Act") ~ glue("Enacted - {description}"),
       TRUE ~ description
     )) |>
   select(bill_id, last_action_description, last_action_date) |>
@@ -160,7 +160,7 @@ rm(bill_actions, bill_actions_df, bills, bills_df, intro_date, most_recent_actio
 
 # Function to create output -----------------------------------------------
 scrape_bill <- function(UUID){
-  
+  OUTPUT_PATH <- 'IL/output'
   # Save bill_metadata
   bill_metadata |> filter(uuid == UUID) |> as.list() |> toJSON(auto_unbox = T, pretty = T) |> writeLines(glue("{OUTPUT_PATH}/bill_metadata/{UUID}.json"))
   
@@ -182,3 +182,13 @@ scrape_bill <- function(UUID){
     }
   }
 }
+
+# Collect data ------------------------------------------------------------
+bills_to_process <- read_csv("IL/output/il_bills_to_process.csv") |>
+  filter(!(session %in% c(91,92)))
+
+future_map(unique(bills_to_process$UUID),
+  ~scrape_bill(.x),
+  .progress = TRUE,
+  .options = furrr_options(seed = TRUE))
+
