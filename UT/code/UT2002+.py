@@ -41,16 +41,18 @@ def get_status(soup):
     
 
 #bill functions
-
 def get_bill_metadata_1997_2001(uuid, session_year, state_bill_id):
     """
     Retrieves the bill title and sponsor from the bill metadata page.
     """
     # Construct the URL for the bill's HTML page.
-    if session_year == "1997":
-        url = f"https://le.utah.gov/~{session_year}/htmdoc/hbillhtm/{state_bill_id}.htm"
+    if state_bill_id.upper().startswith(("SB", "SR", "SJR")):
+        bill_folder = "sbillhtm" if session_year == "1997" else "Sbillhtm"
     else:
-        url = f"https://le.utah.gov/~{session_year}/htmdoc/Hbillhtm/{state_bill_id}.htm"
+        bill_folder = "hbillhtm" if session_year == "1997" else "Hbillhtm"
+
+    url = f"https://le.utah.gov/~{session_year}/htmdoc/{bill_folder}/{state_bill_id}.htm"
+    
     to_scrape = requests.get(url)
     soup = BeautifulSoup(to_scrape.content, 'html.parser')
     
@@ -155,7 +157,11 @@ def get_bill_history_1997_2001(uuid, session_year, state_bill_id):
     descriptions, and vote counts (if available).
     """
     # Construct the URL for the status text file.
-    status_url = f"https://le.utah.gov/~{session_year}/status/hbillsta/{state_bill_id}.txt"
+    if state_bill_id.upper().startswith(("SB", "SR", "SJR")):
+        status_folder = "sbillsta"
+    else:
+        status_folder = "hbillsta"
+    status_url = f"https://le.utah.gov/~{session_year}/status/{status_folder}/{state_bill_id}.txt"
     
     response = requests.get(status_url)
     text_data = response.text
@@ -178,7 +184,13 @@ def get_bill_history_2002(uuid, session_year, state_bill_id):
     Retrieves the bill history from the status text file and extracts action dates,
     descriptions, and vote counts (if available).
     """
-    status_url = f"https://le.utah.gov/~{session_year}/status/hbillsta/{state_bill_id}.txt"
+    if state_bill_id.upper().startswith(("SB", "SR", "SJR")):
+        status_folder = "sbillsta"
+    else:
+        status_folder = "hbillsta"
+
+    # Construct the status URL
+    status_url = f"https://le.utah.gov/~{session_year}/status/{status_folder}/{state_bill_id}.txt"
     
     response = requests.get(status_url)
     text_data = response.text
@@ -199,7 +211,12 @@ def get_bill_history_2002(uuid, session_year, state_bill_id):
     return bill_history
 
 def get_votes(uuid,session_year,state_bill_id):
-    url = f"https://le.utah.gov/~{session_year}/status/hbillsta/{state_bill_id}.001h.txt"
+    if state_bill_id.upper().startswith(("SB", "SR", "SJR")):
+        status_folder = "sbillsta"
+    else:
+        status_folder = "hbillsta"
+
+    url = f"https://le.utah.gov/~{session_year}/status/{status_folder}/{state_bill_id}.001h.txt"
     
     response = requests.get(url)
     text_data = response.text.split()
