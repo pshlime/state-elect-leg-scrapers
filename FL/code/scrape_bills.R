@@ -15,9 +15,12 @@ library(pdftools)
 library(tesseract)
 library(janitor)
 library(fs)
+library(furrr)
 
 rm(list = ls())
 gc()
+
+plan(multisession, workers = 11)
 
 OUTPUT_PATH <- 'FL/output'
 
@@ -71,6 +74,8 @@ build_url <- function(session, bill_number){
 
 
 get_bill_metadata <- function(UUID, session, bill_number, state_url, state_html){
+  OUTPUT_PATH <- 'FL/output'
+  
   title <- state_html |> html_nodes("h2") |> html_text() |> str_squish() |> tail(1)
   description <- state_html |> html_nodes(".width80") |> html_text() |> str_squish()
   status <- state_html |> 
@@ -98,6 +103,8 @@ get_bill_metadata <- function(UUID, session, bill_number, state_url, state_html)
 }
 
 get_sponsors <- function(UUID, session, bill_number, state_html){
+  OUTPUT_PATH <- 'FL/output'
+  
   sponsors_list <- state_html |> html_node("h2+ p") |> html_text() |> str_trim() |> str_squish()
   sponsors_list <- str_split(sponsors_list, ";")[[1]]
   sponsors_list <- str_trim(sponsors_list)
@@ -140,6 +147,8 @@ get_sponsors <- function(UUID, session, bill_number, state_html){
 }
 
 get_bill_history <- function(UUID, session, bill_number, state_html){
+  OUTPUT_PATH <- 'FL/output'
+  
   history_df <- state_html |>
     html_node("#tabBodyBillHistory") |>
     html_table(fill = T) |>
@@ -170,6 +179,7 @@ get_bill_history <- function(UUID, session, bill_number, state_html){
 }
 
 get_votes <- function(UUID, session, bill_number, state_html){
+  OUTPUT_PATH <- 'FL/output'
   # Check to see if any votes
   if(is_empty(state_html |> html_node("h4#Votes + table.tbl"))){
     return(NULL)
@@ -233,11 +243,11 @@ get_votes <- function(UUID, session, bill_number, state_html){
         download_path <- glue("FL/output/scratch_files/{file_name}")
         download.file(file_url, download_path, mode = "wb")
         
-        pdf_text <- pdf_text(download_path)
+        raw_pdf_text <- pdf_text(download_path)
         
         # Get question
         description_pattern <- "(?:SB|SJR|HB|HJR)\\s+\\d+\\s+([A-Za-z\\s]+)"
-        description <- str_match(pdf_text, description_pattern)
+        description <- str_match(raw_pdf_text, description_pattern)
         description <- description |> 
           str_trim() |>
           str_remove_all("^(SB|SJR|HB|HJR)\\s+\\d+\\s*") |>
@@ -247,7 +257,7 @@ get_votes <- function(UUID, session, bill_number, state_html){
         
         # Get roll call responses
         vote_pattern <- "(Y|EX|N)\\s+([A-Za-z\\-]+(?:\\s+[A-Za-z\\-]+)*)(?:\\-\\d+)"
-        vote_data <- (str_extract_all(pdf_text, vote_pattern))[[1]]
+        vote_data <- (str_extract_all(raw_pdf_text, vote_pattern))[[1]]
         vote_data <- data.frame(raw = vote_data) |>
           mutate(
             response = str_extract(raw, "^[A-Z]{1,2}") |> str_trim() |>
@@ -304,6 +314,8 @@ get_votes <- function(UUID, session, bill_number, state_html){
 }
 
 get_bill_text <- function(UUID, state_html){
+  OUTPUT_PATH <- '/Users/josephloffredo/MIT Dropbox/Joseph Loffredo/election_bill_text/data/florida'
+  
   bill_text_info <- state_html |> html_node("#tabBodyBillText") |> html_table(fill = T) |> 
     select(Version, Posted) |>
     clean_names() |>
@@ -314,50 +326,55 @@ get_bill_text <- function(UUID, state_html){
   
   bill_text_links <- state_html |> html_nodes("#tabBodyBillText .lnk_BillTextHTML") |> html_attr("href")
   bill_text_links <- glue("https://www.flsenate.gov{bill_text_links}")
-  bill_text_info$text_url <- bill_text_links
   
-  process_text <- function(UUID, version, posted, text_url){
-    dir_create(glue("{OUTPUT_PATH}/bill_text/{UUID}"))
+  # Check if lengths match before assignment
+  if (nrow(bill_text_info) == length(bill_text_links)) {
+    bill_text_info$text_url <- bill_text_links
     
-    download_path <- glue("{OUTPUT_PATH}/bill_text/{UUID}")
-    raw_file_name <- str_c(version, posted, sep = "_") |> 
-      str_replace_all(c("-"="_"," "="")) |> 
-      str_c("_plain",".txt")
-    html_file_name <- str_c(version, posted, sep = "_") |> 
-      str_replace_all(c("-"="_"," "="")) |> 
-      str_c("_html",".txt")
+    process_text <- function(UUID, version, posted, text_url){
+      dir_create(glue("{OUTPUT_PATH}/{UUID}"))
+      
+      download_path <- glue("{OUTPUT_PATH}/{UUID}")
+      raw_file_name <- str_c(version, posted, sep = "_") |> 
+        str_replace_all(c("-"="_"," "="")) |> 
+        str_c("_plain",".txt")
+      html_file_name <- str_c(version, posted, sep = "_") |> 
+        str_replace_all(c("-"="_"," "="")) |> 
+        str_c("_html",".txt")
+      
+      download.file(text_url, glue("{download_path}/{raw_file_name}"), mode = "wb")
+      
+      text_html <- read_html(glue("{download_path}/{raw_file_name}"))
+      
+      raw_text <- text_html |> 
+        html_nodes("pre") |> 
+        html_text() |> 
+        str_remove_all("\r\n\r\n[0-9\\s]{1,3}") |>
+        str_remove_all("CODING: Words stricken are deletions; words underlined are additions.") |>
+        str_trim() |> 
+        str_squish()
+      
+      html_format <- text_html |> 
+        html_nodes("pre") |> 
+        as.character() |> 
+        str_remove_all("<a name=\"Page[0-9]{1,3}Line\\d+\"></a>\\s*\\d+\\s*") |>
+        str_remove_all("\r\n\r\n[0-9\\s]{1,3}") |>
+        clean_html() |>
+        str_remove_all("CODING: Words <strike class=\"amendmentDeletedText\">stricken</strike> are deletions; words <u class=\"amendmentInsertedText\">underlined</u> are additions.") |>
+        str_trim() |> 
+        str_squish()
+      
+      # Debugging logs
+      message("Writing plain text file: ", raw_file_name)
+      writeLines(raw_text, glue("{download_path}/{raw_file_name}"))
+      
+      message("Writing HTML format text file: ", html_file_name)
+      writeLines(html_format, glue("{download_path}/{html_file_name}"))
+    }
     
-    download.file(text_url, glue("{download_path}/{raw_file_name}"), mode = "wb")
-    
-    text_html <- read_html(glue("{download_path}/{raw_file_name}"))
-    
-    raw_text <- text_html |> 
-      html_nodes("pre") |> 
-      html_text() |> 
-      str_remove_all("\r\n\r\n[0-9\\s]{1,3}") |>
-      str_remove_all("CODING: Words stricken are deletions; words underlined are additions.") |>
-      str_trim() |> 
-      str_squish()
-    
-    html_format <- text_html |> 
-      html_nodes("pre") |> 
-      as.character() |> 
-      str_remove_all("<a name=\"Page[0-9]{1,3}Line\\d+\"></a>\\s*\\d+\\s*") |>
-      str_remove_all("\r\n\r\n[0-9\\s]{1,3}") |>
-      clean_html() |>
-      str_remove_all("CODING: Words <strike class=\"amendmentDeletedText\">stricken</strike> are deletions; words <u class=\"amendmentInsertedText\">underlined</u> are additions.") |>
-      str_trim() |> 
-      str_squish()
-    
-    # Debugging logs
-    message("Writing plain text file: ", raw_file_name)
-    writeLines(raw_text, glue("{download_path}/{raw_file_name}"))
-    
-    message("Writing HTML format text file: ", html_file_name)
-    writeLines(html_format, glue("{download_path}/{html_file_name}"))
+    pmap(bill_text_info, process_text)
   }
   
-  pmap(bill_text_info, process_text)
 }
 
 scrape_bill <- function(UUID, session = NA, bill_number = NA){
@@ -371,8 +388,56 @@ scrape_bill <- function(UUID, session = NA, bill_number = NA){
   get_bill_text(UUID, state_html)
 }
 
-# ## Testing
-# session = '2007'
-# UUID = 'FL2007H537'
-# bill_number = 'HB537'
-# scrape_bill(UUID, session, bill_number)
+
+# Build list to scrape ----------------------------------------------------
+vrleg_master_file <- readRDS("~/Desktop/GitHub/election-roll-call/bills/vrleg_master_file.rds")
+
+gs_list <- googlesheets4::read_sheet('1Tn69X6lErLUX3xNOZiXKerhAEuBWR4J0wth-SFHJ7Us') |> janitor::clean_names()
+gs_list <- gs_list |> 
+  mutate(
+    session = as.character(session),
+    bill_type = str_extract(bill_number, "^[A-Z]+"),
+    bill_type_uuid = bill_type,
+    bill_number = str_extract(bill_number, "[0-9]+$"),
+    bill_type = case_match(
+      bill_type,
+      "S" ~ "SB",
+      "H" ~ "HB",
+      .default = bill_type
+    ),
+    UUID = case_when(
+      str_detect(session, "A") ~ glue("FL{session}{bill_type_uuid}{bill_number}-A"),
+      str_detect(session, "B") ~ glue("FL{session}{bill_type_uuid}{bill_number}-B"),
+      TRUE ~ glue("FL{session}{bill_type_uuid}{bill_number}")
+    ),
+    bill_number = glue("{bill_type}{bill_number}")
+  ) |>
+  select(UUID, session, bill_number)
+
+fl_master_file <- vrleg_master_file |> 
+  filter(STATE == 'FL' & YEAR %in% c(2003:2014)) |>
+  mutate(
+    bill_id = str_remove_all(UUID, "FL"),
+    session = str_extract(bill_id, "^[0-9]{4}"),
+    bill_type = str_extract(bill_id, "[A-Z]+"),
+    bill_type = case_match(
+      bill_type,
+      "H" ~ "HB",
+      "S" ~ "SB",
+      .default = bill_type
+    ),
+    session = case_when(
+      str_detect(bill_id, "-A") ~ glue("{session}A"),
+      str_detect(bill_id, "-B") ~ glue("{session}B"),
+      TRUE ~ session
+    ),
+    bill_number = str_remove_all(bill_id, "-[A-Z]$"),
+    bill_number = str_extract(bill_number, "[0-9]+$"),
+    bill_number = glue("{bill_type}{bill_number}")
+  ) |>
+  select(UUID, session, bill_number)
+
+bills_to_process <- bind_rows(fl_master_file, gs_list)
+
+bills_to_process |>
+  future_pmap(scrape_bill, .progress = TRUE, .options = furrr_options(seed = TRUE))
