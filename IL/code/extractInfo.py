@@ -12,6 +12,12 @@ import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import logging
+import pandas as pd
+import os
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def scrape_bill(uuid, session, bill_number):
     #bill_history_data, las
@@ -48,7 +54,9 @@ def scrape_bill(uuid, session, bill_number):
     # Extract votes
     voteHistory = extractVotes(roll_call_url)
     
-    if voteHistory:
+    if all(v is None for v in voteHistory):
+        logging.warning(f"⚠️ Warning: No votes found for {uuid}.")
+    elif voteHistory:
         # unpack vote history (there could be multiple rounds of voting)
         # each voteHistory element contans [final_votes, roll_call, vote_date, chamber, vote_description]) 
         for vh in voteHistory:
@@ -70,6 +78,8 @@ def scrape_bill(uuid, session, bill_number):
 
 
 def extractMetadata(url):
+    logging.info(f"Extracting metadata from {url}")
+
     bill_title = ""
     bill_description = ""
     bill_status = ""
@@ -100,6 +110,8 @@ def extractMetadata(url):
     
     
 def extractHistory(url):
+    logging.info(f"Extracting bill history from {url}")
+
     bill_history = []
     
     result = requests.get(url)
@@ -145,6 +157,8 @@ def extractHistory(url):
         return bill_history
     
 def extractSponsors(url):
+    logging.info(f"Extracting sponsors from {url}")
+
     sponsor_list = []
     isFirstSponsor = True
     
@@ -174,6 +188,8 @@ def extractSponsors(url):
 
 # Function to extract votes and roll call 
 def extractVotes(url):
+    logging.info(f"Extracting votes from {url}")
+    
     pattern_total = r".*YEAS.*NAYS.*"
     pattern_individual = r"([YN])\s+([A-Z]+)+"
     pattern_date = r"\d{1,2}\/\d{1,2}\/\d{4}"
@@ -289,14 +305,31 @@ def write_file(file_name, directory, data):
         
 # Example usage
 if __name__ == "__main__":
-    #print(scrape_bill("IL1997SB504", "90", "504"))
-    #(scrape_bill("IL1999HB100", "91", "100"))
-    #roll_call_url = "https://www.ilga.gov/legislation/votehistory/hrollcalls91/910HB1234.html"
-    #roll_call_url = "https://www.ilga.gov/legislation/votehistory/hrollcalls91/910HB0100.html"
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+    bill_list = pd.read_csv("IL/output/il_bills_to_process.csv")
+    metadata_dir = "IL/output/bill_metadata"
+    existing_uuids = {filename.removesuffix(".json") for filename in os.listdir(metadata_dir)}
 
-    #voteHistory = extractVotes(roll_call_url)
-    uuid = "IL1999H1234"
-    session = 91
-    bill_number = "HB1234"
-    
-    scrape_bill(uuid, session, bill_number)
+    # Filter bill_list to only 91st and 92nd sessions
+    # and exclude bills that have already been processed
+    bill_list = bill_list[
+        bill_list["session"].isin([91, 92]) &
+        ~bill_list["UUID"].isin(existing_uuids)
+    ]
+
+    bill_rows = bill_list[["UUID", "session", "bill_number"]].to_dict(orient="records")
+    # Parallel execution
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = {
+            executor.submit(scrape_bill, row["UUID"], row["session"], row["bill_number"]): row
+            for row in bill_rows
+        }
+
+    for future in as_completed(futures):
+        row = futures[future]
+        try:
+            result = future.result()
+            # Do something with result, e.g. collect it if scrape_bill returns data
+            # results.append(result)
+        except Exception as exc:
+            logging.error(f"Bill {row} generated an exception: {exc}")
