@@ -14,30 +14,31 @@ load_dotenv()
 CLAUDE_APIKEY = os.getenv('CLAUDE_APIKEY')
 client = AsyncAnthropic(api_key=CLAUDE_APIKEY)
 
-PROMPT = """I've uploaded a legislative bill in PDF format. Please analyze this document and properly mark text that has been inserted or deleted in the amendment process.
+MAX_RETRIES = 10
+RETRY_BACKOFF_BASE = 3
 
-In legislative bills, inserted text is typically indicated by underlining, and deleted text is typically shown with strikethrough formatting.
+PROMPT = """IMPORTANT: Output ONLY the text of the uploaded bill with the specified markup. DO NOT summarize, analyze, or add any commentary.
 
-Instructions:
-1. Examine the PDF carefully, noting any text that appears with underlining (indicating insertion) or strikethrough (indicating deletion).
-2. For all underlined text that represents insertions, wrap it with: <u class="amendmentInsertedText"> and </u>
-3. For all text with strikethrough that represents deletions, wrap it with: <strike class="amendmentDeletedText"> and </strike>
-4. Present the complete text of the bill with these markup tags in place.
-5. Remove any line numbers that appear in the original document.
-6. Pay particular attention to Section 1 where amendments to existing code sections are typically described.
+The uploaded PDF is a legislative bill. Your task is to process it as follows:
 
-Please output the complete bill text as written with proper markup for the inserted and deleted portions. If there is no insertion or deletion, simply return the plain text of the bill without any markup.
+1. Identify any text with underlining (indicating insertion) and wrap it with: <u class="amendmentInsertedText"> and </u>
 
-By no means should you attempt to summarize or interpret the bill. Your task is parse the text and include the desired formatting as appropriate.
+2. Identify any text with strikethrough (indicating deletion) and wrap it with: <strike class="amendmentDeletedText"> and </strike>
 
-Please do not include any additional introduction, commentary, or explanation in your response. Just provide the text with the specified markup.
+3. Remove any line numbers appearing in the original document.
+
+4. Output the complete bill text with these markup tags in place.
+
+If the bill contains no underlined or strikethrough text, simply output the plain text of the bill without any markup.
+
+Your response must contain ONLY the processed bill text - no introduction, explanation, or commentary of any kind.
 """
 
 
 async def scrape_text(pdf_path, semaphore):
     async with semaphore:
         try:
-            await asyncio.sleep(10)  # Wait ~10s between tasks to avoid rate limit
+            await asyncio.sleep(10)  # Initial sleep to respect rate limit
 
             logging.info(f"Uploading PDF file: {pdf_path}")
             with open(pdf_path, "rb") as pdf_file:
@@ -60,15 +61,25 @@ async def scrape_text(pdf_path, semaphore):
                 }
             ]
 
-            logging.info(f"Streaming Claude response for: {pdf_path}")
-            async with client.messages.stream(
-                model="claude-3-7-sonnet-20250219",
-                max_tokens=64000,
-                messages=messages,
-            ) as stream:
-                response_text = ""
-                async for chunk in stream.text_stream:
-                    response_text += chunk
+            for attempt in range(1, MAX_RETRIES + 1):
+                try:
+                    logging.info(f"Streaming Claude response for: {pdf_path} (attempt {attempt})")
+                    async with client.messages.stream(
+                        model="claude-3-7-sonnet-20250219",
+                        max_tokens=64000,
+                        messages=messages,
+                    ) as stream:
+                        response_text = ""
+                        async for chunk in stream.text_stream:
+                            response_text += chunk
+                    break  # Exit loop on success
+                except Exception as stream_error:
+                    logging.warning(f"Stream attempt {attempt} failed for {pdf_path}: {stream_error}")
+                    if attempt == MAX_RETRIES:
+                        raise  # Final failure
+                    backoff_time = RETRY_BACKOFF_BASE * (attempt + 1)
+                    logging.info(f"Retrying in {backoff_time}s...")
+                    await asyncio.sleep(backoff_time)
 
             txt_path = f"{os.path.splitext(pdf_path)[0]}_html.txt"
             with open(txt_path, "w", encoding="utf-8") as f:
@@ -80,7 +91,6 @@ async def scrape_text(pdf_path, semaphore):
         except Exception as e:
             logging.error(f"Failed on {pdf_path}: {e}")
             return {"pdf_path": pdf_path, "status": "failed", "error": str(e)}
-
 
 async def main():
     df = pd.read_csv("GA/output/ga_bill_text_links.csv")
@@ -98,7 +108,7 @@ async def main():
 
     logging.info(f"Processing {len(pdf_paths)} files with async Claude...")
 
-    # Limit to 2 concurrent jobs
+    # Limit to 1 concurrent jobs
     semaphore = asyncio.Semaphore(1)
 
     tasks = [scrape_text(path, semaphore) for path in pdf_paths]
