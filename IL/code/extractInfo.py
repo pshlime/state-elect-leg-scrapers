@@ -18,7 +18,7 @@ def scrape_bill(uuid, session, bill_number):
     
     state = uuid[0:2]
     year = uuid[2:6]
-    state_bill_id = uuid[6:]
+    state_bill_id = bill_number
     bill_id = state_bill_id[0:2] + "-" + state_bill_id[2:] #make it work with old function
     metadata_record = {}
     sponsor_record = {}
@@ -295,8 +295,8 @@ if __name__ == "__main__":
     #roll_call_url = "https://www.ilga.gov/legislation/votehistory/hrollcalls91/910HB0100.html"
 
     #voteHistory = extractVotes(roll_call_url)
-    uuid = "IL1999HB1234"
+    uuid = "IL1999H1234"
     session = 91
-    bill_number = "1234"
+    bill_number = "HB1234"
     
     scrape_bill(uuid, session, bill_number)
