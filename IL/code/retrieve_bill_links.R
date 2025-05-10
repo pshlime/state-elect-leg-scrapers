@@ -49,3 +49,15 @@ build_url <- function(session, bill_number){
   
   return(url)
 }
+
+retrieve_bill_text_link <- function(session, url){
+  if(session %in% c('91', '92')){
+    text_link <- url |> read_html() |>  html_nodes("a") |> html_attr("href") |> str_subset("groups") |> unique()
+    return(glue("https://ilga.gov{text_link}"))
+  } else{
+    text_link <- url |> read_html() |> html_nodes(".legislinks") |> html_attr("href") |> str_subset("fulltext")
+    text_link <- glue("https://ilga.gov{text_link}")
+    raw_text_link <- text_link |> read_html() |> html_nodes("#toplinks a") |> html_attr("href") |> str_subset("legislation/fulltext")
+    return(glue("https://ilga.gov{raw_text_link}"))
+  }
+}
