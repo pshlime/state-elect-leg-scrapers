@@ -4,6 +4,12 @@ from bs4 import BeautifulSoup
 from dateutil.parser import parse
 import re
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import pandas as pd
+import logging
+import os
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 #helper functions
 def write_file(file_name, directory, data):
@@ -88,7 +94,7 @@ def get_bill_metadata_1997_2001(uuid, session_year, state_bill_id):
         "sponsors": sponsors
     }
     
-    return bill_metadata,sponsors_output
+    return bill_metadata,sponsors_output,url
   
 def get_bill_metadata_2002(uuid, session_year, state_bill_id):
     """
@@ -148,7 +154,7 @@ def get_bill_metadata_2002(uuid, session_year, state_bill_id):
         "sponsors": sponsors
     }
     
-    return bill_metadata,sponsors_output
+    return bill_metadata,sponsors_output,url
           
 
 def get_bill_history_1997_2001(uuid, session_year, state_bill_id):
@@ -210,68 +216,71 @@ def get_bill_history_2002(uuid, session_year, state_bill_id):
     }
     return bill_history
 
-def get_votes(uuid,session_year,state_bill_id):
-    if state_bill_id.upper().startswith(("SB", "SR", "SJR")):
-        status_folder = "sbillsta"
-    else:
-        status_folder = "hbillsta"
-
-    url = f"https://le.utah.gov/~{session_year}/status/{status_folder}/{state_bill_id}.001h.txt"
-    
+def get_votes(uuid,url, session_year,state_bill_id):
     response = requests.get(url)
-    text_data = response.text.split()
-    
-    chamber = text_data[text_data.index(state_bill_id[-2:])+1][0]
+    soup = BeautifulSoup(response.content, 'html.parser')
+    links = soup.select("#billStatus a")
+    links = [a['href'] for a in links if 'href' in a.attrs]
 
-    #get description
-    months = {"JANUARY":"01","FEBRUARY":"02","MARCH":"03","APRIL":"04","MAY":"05","JUNE":"06","JULY":"07",
-              "AUGUST":"08","SEPTEMBER":"09","OCTOBER":"10","NOVEMBER":"11","DECEMBER":"12"}
-    desc_idx = text_data.index("TABULATION")+1
-    description = ""
-    while text_data[desc_idx] not in months.keys():
-        description += text_data[desc_idx] + " "
-        desc_idx += 1
-    
-    #get date
-    date = text_data[desc_idx+2] + "-" + months[text_data[desc_idx]] + "-" + text_data[desc_idx+1]
+    if session_year <= 2011:
+        links = [f"https://le.utah.gov{link}" for link in links if "billsta" in link]
+        for link in links:
+            response = requests.get(link)
+            text_data = response.text.split()
+            
+            chamber = text_data[text_data.index(state_bill_id[-2:])+1][0]
 
-    #vote info
-    yeas = text_data[text_data.index("YEAS")+2]
-    nays = text_data[text_data.index("NAYS")+2]
-    other = text_data[text_data.index("VOTING")+2]
+            #get description
+            months = {"JANUARY":"01","FEBRUARY":"02","MARCH":"03","APRIL":"04","MAY":"05","JUNE":"06","JULY":"07",
+                    "AUGUST":"08","SEPTEMBER":"09","OCTOBER":"10","NOVEMBER":"11","DECEMBER":"12"}
+            desc_idx = text_data.index("TABULATION")+1
+            description = ""
+            while text_data[desc_idx] not in months.keys():
+                description += text_data[desc_idx] + " "
+                desc_idx += 1
+            
+            #get date
+            date = text_data[desc_idx+2] + "-" + months[text_data[desc_idx]] + "-" + text_data[desc_idx+1]
 
-    #getting roll call
-    roll_call = []
-    roll_idx = text_data.index("YEAS")+3
-    r= "Yea"
-    while roll_idx <= len(text_data)-1:
-        if text_data[roll_idx] == "NAYS":
-            roll_idx += 3
-            r = "Nay"
-        if text_data[roll_idx] == "ABSENT":
-            roll_idx += 6
-            r = "Absent"
-        
-        roll_call.append({
-            "name": text_data[roll_idx],
-            "response": r
-        })
-        roll_idx +=1
+            #vote info
+            yeas = text_data[text_data.index("YEAS")+2]
+            nays = text_data[text_data.index("NAYS")+2]
+            other = text_data[text_data.index("VOTING")+2]
 
-    votes = {
-        "uuid": uuid,
-        "state": "UT",
-        "session": session_year,  
-        "state_bill_id": state_bill_id,
-        "chamber": chamber,
-        "date": date, 
-        "description": description,
-        "yeas": yeas,
-        "nays":nays,
-        "other":other,
-        "roll_call": [roll_call]
-    }
-    return votes
+            #getting roll call
+            roll_call = []
+            roll_idx = text_data.index("YEAS")+3
+            r= "Yea"
+            while roll_idx <= len(text_data)-1:
+                if text_data[roll_idx] == "NAYS":
+                    roll_idx += 3
+                    r = "Nay"
+                if text_data[roll_idx] == "ABSENT":
+                    roll_idx += 6
+                    r = "Absent"
+                
+                roll_call.append({
+                    "name": text_data[roll_idx],
+                    "response": r
+                })
+                roll_idx +=1
+
+            votes = {
+                "uuid": uuid,
+                "state": "UT",
+                "session": session_year,  
+                "state_bill_id": state_bill_id,
+                "chamber": chamber,
+                "date": date, 
+                "description": description,
+                "yeas": yeas,
+                "nays":nays,
+                "other":other,
+                "roll_call": [roll_call]
+            }
+
+            write_file(uuid,"votes",votes)
+   
 
 #main function
 def collect_bill_data(uuid, session_year, state_bill_id):
@@ -280,27 +289,45 @@ def collect_bill_data(uuid, session_year, state_bill_id):
     Returns four JSON objects: bill_metadata, sponsors, bill_history, and votes.
     """
     if int(session_year) >= 2002:
-        metadata,sponsors = get_bill_metadata_2002(uuid,session_year, state_bill_id)
+        metadata,sponsors,url = get_bill_metadata_2002(uuid,session_year, state_bill_id)
         write_file(uuid, "bill_metadata", metadata)
         write_file(uuid, "sponsors", sponsors)
             
         history_data = get_bill_history_2002(uuid, session_year, state_bill_id)    
         write_file(uuid, "bill_history", history_data)
-        votes = get_votes(uuid,session_year,state_bill_id)
-        write_file(uuid,"votes",votes)
-        return {"bill_metadata":metadata,"sponsors":sponsors,"bill_history":history_data,"votes":votes}
+        get_votes(uuid,url, session_year,state_bill_id)
     elif int(session_year) < 2002:
-        metadata,sponsors = get_bill_metadata_1997_2001(uuid,session_year, state_bill_id)
+        metadata,sponsors,url = get_bill_metadata_1997_2001(uuid,session_year, state_bill_id)
         write_file(uuid, "bill_metadata", metadata)
         write_file(uuid, "sponsors", sponsors)
             
         history_data = get_bill_history_1997_2001(uuid, session_year, state_bill_id)    
         write_file(uuid, "bill_history", history_data)
-        return {"bill_metadata":metadata,"sponsors":sponsors,"bill_history":history_data}
     print("Something's wrong!")
         
 
 # Example usage:
 if __name__ == "__main__":
-    # bill_data = collect_bill_data_1997_2001("UT2008HB71", "2008", "HB0071")
-    print(collect_bill_data("UT2009S24", "2009", "SB0024"))
+    bill_list = pd.read_csv("UT/output/UT_bills_to_process.csv")
+    metadata_dir = "UT/output/bill_metadata"
+    existing_uuids = {filename.removesuffix(".json") for filename in os.listdir(metadata_dir)}
+
+    # Exclude bills that have already been processed
+    bill_list = bill_list[~bill_list["UUID"].isin(existing_uuids)]
+
+    bill_rows = bill_list[["UUID", "session", "bill_number"]].to_dict(orient="records")
+    # Parallel execution
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = {
+            executor.submit(collect_bill_data, row["UUID"], row["session"], row["bill_number"]): row
+            for row in bill_rows
+        }
+
+    for future in as_completed(futures):
+        row = futures[future]
+        try:
+            result = future.result()
+            # Do something with result, e.g. collect it if scrape_bill returns data
+            # results.append(result)
+        except Exception as exc:
+            logging.error(f"Bill {row} generated an exception: {exc}")
