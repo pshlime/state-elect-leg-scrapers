@@ -216,6 +216,20 @@ def get_bill_history_2002(uuid, session_year, state_bill_id):
     }
     return bill_history
 
+def extract_names_by_label(soup, label_start):
+    """Find names listed under a label like 'Yeas', 'Nays', etc."""
+    label_tag = soup.find('b', string=lambda s: s and s.strip().startswith(label_start))
+    if not label_tag:
+        return []
+
+    table_tag = label_tag.find_next('table')
+    if not table_tag:
+        return []
+
+    # Find all <td> elements inside the table and extract the text
+    names = [td.get_text(strip=True) for td in table_tag.find_all('td')]
+    return names
+
 def get_votes(uuid,url, session_year,state_bill_id):
     response = requests.get(url)
     soup = BeautifulSoup(response.content, 'html.parser')
@@ -224,11 +238,12 @@ def get_votes(uuid,url, session_year,state_bill_id):
 
     if session_year <= 2011:
         links = [f"https://le.utah.gov{link}" for link in links if "billsta" in link]
+        count = 1
         for link in links:
             response = requests.get(link)
             text_data = response.text.split()
             
-            chamber = text_data[text_data.index(state_bill_id[-2:])+1][0]
+            chamber = 'H' if 'hbill' in link else 'S'
 
             #get description
             months = {"JANUARY":"01","FEBRUARY":"02","MARCH":"03","APRIL":"04","MAY":"05","JUNE":"06","JULY":"07",
@@ -279,7 +294,56 @@ def get_votes(uuid,url, session_year,state_bill_id):
                 "roll_call": [roll_call]
             }
 
-            write_file(uuid,"votes",votes)
+            file_name = f"{uuid}_{count}"
+            write_file(file_name,"votes",votes)
+
+            count += 1
+    else:
+        links = [f"https://le.utah.gov{link}" for link in links if "DynaBill" in link]
+        count = 1
+        for link in links:
+            response = requests.get(link)
+            soup = BeautifulSoup(response.content, 'html.parser')
+            if "voice vote" in soup.text:
+                continue
+            else:
+                chamber = "H" if 'house = "H' in link else "S"
+                date = soup.find("b").get_text()
+                match = re.search(r'(\d{1,2}/\d{1,2}/\d{4})', date)
+                if match:
+                    raw_date = match.group(1)  # e.g., "2/24/2014"
+                    # Convert to YYYY-MM-DD
+                    date = datetime.strptime(raw_date, "%m/%d/%Y").strftime("%Y-%m-%d")
+
+                centers = soup.find_all('center')
+                description = ' - '.join([centers[5].get_text(strip=True), centers[6].get_text(strip=True)])
+
+                yeas = extract_names_by_label(soup, "Yeas")
+                nays = extract_names_by_label(soup, "Nays")
+                other = extract_names_by_label(soup, "Absent")
+
+                roll_call = []
+                roll_call.extend([{"name": name, "response": "Yea"} for name in yeas])
+                roll_call.extend([{"name": name, "response": "Nay"} for name in nays])
+                roll_call.extend([{"name": name, "response": "Absent"} for name in other])
+                votes = {
+                    "uuid": uuid,
+                    "state": "UT",
+                    "session": session_year,  
+                    "state_bill_id": state_bill_id,
+                    "chamber": chamber,
+                    "date": date, 
+                    "description": description,
+                    "yeas": len(yeas),
+                    "nays": len(nays),
+                    "other": len(other),
+                    "roll_call": [roll_call]
+                }
+
+                file_name = f"{uuid}_{count}"
+                write_file(file_name,"votes",votes)
+
+                count += 1
    
 
 #main function
