@@ -192,7 +192,6 @@ scrape_bill <- function(UUID){
   }
 }
 
-
 # Process bill list -------------------------------------------------------
 vrleg_master_file <- readRDS("~/Desktop/GitHub/election-roll-call/bills/vrleg_master_file.rds")
 
