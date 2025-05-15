@@ -8,9 +8,13 @@
 library(tidyverse)
 library(jsonlite)
 library(glue)
+library(googlesheets4)
+library(furrr)
 
 rm(list = ls())
 gc()
+
+plan(multisession, workers = 11)
 
 DROPBOX_PATH <- '/Users/josephloffredo/MIT Dropbox/Joseph Loffredo/previous_leg_files/NC'
 OUTPUT_PATH <- 'NC/output'
@@ -165,7 +169,7 @@ rm(bill_actions, bill_actions_df, bills, bills_df, intro_date, most_recent_actio
 
 # Function to create output -----------------------------------------------
 scrape_bill <- function(UUID){
-  
+  OUTPUT_PATH <- 'NC/output'
   # Save bill_metadata
   bill_metadata |> filter(uuid == UUID) |> as.list() |> toJSON(auto_unbox = T, pretty = T) |> writeLines(glue("{OUTPUT_PATH}/bill_metadata/{UUID}.json"))
   
@@ -187,4 +191,63 @@ scrape_bill <- function(UUID){
     }
   }
 }
-   
+
+
+# Process bill list -------------------------------------------------------
+vrleg_master_file <- readRDS("~/Desktop/GitHub/election-roll-call/bills/vrleg_master_file.rds")
+
+gs_list <- googlesheets4::read_sheet('1LRM6Dqrh8i4B8_NyfHBd589IkIvBPYjTY4wt42Ri4Fo') |> janitor::clean_names()
+gs_list <- gs_list |> 
+  mutate(
+    bill_number = str_replace(bill_number, "\\s",""),
+    bill_type = str_extract(bill_number, "^[A-Z]+"),
+    bill_number = str_extract(bill_number, "[0-9]+$"),
+    bill_type_uuid = case_match(
+      bill_type,
+      "HB" ~ "H",
+      "SB" ~ "S",
+      .default = bill_type
+    ),
+    year = str_extract(session, "^[0-9]{4}"),
+    session = str_remove(session, "^[0-9]{4}-"),
+    UUID = glue("NC{year}{bill_type_uuid}{bill_number}"),
+    bill_number = glue("{bill_type}{bill_number}")
+  ) |>
+  select(UUID, session, bill_number)
+
+nc_master <- vrleg_master_file |> 
+  filter(STATE == 'NC' & YEAR %in% c(1995:2014)) |>
+  mutate(
+    bill_id = str_remove_all(UUID, "NC"),
+    session = str_extract(bill_id, "^[0-9]{4}"),
+    bill_type = str_extract(bill_id, "[A-Z]+"),
+    bill_type = case_match(
+      bill_type,
+      "H" ~ "HB",
+      "S" ~ "SB",
+      .default = bill_type
+    ),
+    bill_number = str_extract(bill_id, "[0-9]+$"),
+    session = case_when(
+      session %in% c('1995','1996') ~ '1995',
+      session %in% c('1997','1998') ~ '1997',
+      session %in% c('1999','2000') ~ '1999',
+      session %in% c('1999','2000') ~ '2001',
+      session %in% c('2001','2002') ~ '2001',
+      session %in% c('2003','2004') ~ '2003',
+      session %in% c('2005','2006') ~ '2005',
+      session %in% c('2007','2008') ~ '2007',
+      session %in% c('2009','2010') ~ '2009',
+      session %in% c('2011','2012') ~ '2011',
+      session %in% c('2013','2014') ~ '2013'
+    ),
+    bill_number = glue("{bill_type}{bill_number}")
+  ) |>
+  select(UUID, session, bill_number)
+
+bills_to_process <- bind_rows(nc_master,gs_list) |> distinct()
+
+future_map(unique(bills_to_process$UUID),
+           ~scrape_bill(.x),
+           .progress = TRUE,
+           .options = furrr_options(seed = TRUE))   
