@@ -47,8 +47,6 @@ scrape_text <- function(UUID, document_id){
   message(UUID)
   TEXT_OUTPUT_PATH <- '/Users/josephloffredo/MIT Dropbox/Joseph Loffredo/election_bill_text/data/arizona'
   
-  dir_create(glue("{TEXT_OUTPUT_PATH}/{UUID}"))
-  
   text_links <- tryCatch(
     retrieve_document_links(document_id),
     error = function(e) {
@@ -59,6 +57,8 @@ scrape_text <- function(UUID, document_id){
   if (is.null(text_links)) {
     return(NULL)
   } else{
+    dir_create(glue("{TEXT_OUTPUT_PATH}/{UUID}"))
+    
     text_links |>
       pmap(function(link, version) {
         page <- read_html(link)
@@ -70,6 +70,8 @@ scrape_text <- function(UUID, document_id){
         writeLines(text, dest_file_path)
       })
   }
+  
+  Sys.sleep(1)
 }
 
 bills <- list.files(path = "AZ/output/bill_metadata/", pattern = "*.json", full.names = TRUE) |>
@@ -80,7 +82,10 @@ bills <- list.files(path = "AZ/output/bill_metadata/", pattern = "*.json", full.
     as_tibble(json)
   })
 
+already_processed <- list.files(path= "/Users/josephloffredo/MIT Dropbox/Joseph Loffredo/election_bill_text/data/arizona")
+
 bills |>
   mutate(document_id = basename(state_url) |> str_remove("\\?SessionId=[0-9]{1,3}$")) |>
   select(UUID = uuid, document_id) |>
+  filter(!(UUID %in% already_processed)) |>
   future_pmap(scrape_text)
