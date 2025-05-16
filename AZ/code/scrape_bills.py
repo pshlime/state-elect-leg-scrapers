@@ -2,7 +2,10 @@ import json
 import requests
 import datetime
 import re
-
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import pandas as pd
+import logging
+import os
 from lxml import html
 
 def scrape_bill(uuid, state, state_bill_id, session):
@@ -242,9 +245,24 @@ def write_file(file_name, directory, data):
         json.dump(data, f, indent=4)
 
 if __name__ == "__main__":
-    test_uuid = "AZ1995H2020"
-    test_state = "AZ"
-    test_bill_id = "HB2020"
-    test_session = "1995 - Forty-second Legislature - First Regular Session"
+    bill_list = pd.read_csv("AZ/output/AZ_bills_to_process.csv")
+    metadata_dir = "AZ/output/bill_metadata"
+    existing_uuids = {filename.removesuffix(".json") for filename in os.listdir(metadata_dir)}
 
-    scrape_bill(test_uuid, test_state, test_bill_id, test_session)
+    # Exclude bills that have already been processed
+    bill_list = bill_list[~bill_list["UUID"].isin(existing_uuids)]
+
+    bill_rows = bill_list[["UUID", "session", "bill_number"]].to_dict(orient="records")
+    # Parallel execution
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = {
+            executor.submit(scrape_bill, row["UUID"], "AZ", row["bill_number"], row["session"]): row
+            for row in bill_rows
+        }
+
+    for future in as_completed(futures):
+        row = futures[future]
+        try:
+            result = future.result()
+        except Exception as exc:
+            logging.error(f"Bill {row} generated an exception: {exc}")
