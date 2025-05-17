@@ -82,10 +82,15 @@ bills <- list.files(path = "AZ/output/bill_metadata/", pattern = "*.json", full.
     as_tibble(json)
   })
 
-already_processed <- list.files(path= "/Users/josephloffredo/MIT Dropbox/Joseph Loffredo/election_bill_text/data/arizona")
-
 bills |>
   mutate(document_id = basename(state_url) |> str_remove("\\?SessionId=[0-9]{1,3}$")) |>
   select(UUID = uuid, document_id) |>
-  filter(!(UUID %in% already_processed)) |>
   future_pmap(scrape_text)
+
+bill_text_files <- data.frame(
+  file_path = list.files(path = "/Users/josephloffredo/MIT Dropbox/Joseph Loffredo/election_bill_text/data/arizona", pattern = "*.txt", full.names = TRUE, recursive = TRUE)) |>
+  mutate(UUID = str_remove(file_path,basename(file_path)) |> basename()) |>
+  select(UUID, file_path) |>
+  write_csv("AZ/output/az_bill_text_files.csv")
+
+

@@ -88,7 +88,7 @@ def run_in_parallel(pdf_paths, max_workers=10):
 # ------------------ MAIN ------------------
 
 if __name__ == "__main__":
-    df = pd.read_csv("NC/nc_bill_text_files.csv")
+    df = pd.read_csv("NC/output/nc_bill_text_files.csv")
 
     pdf_paths = df["pdf_path"].dropna().tolist()
     pdf_paths = [p for p in pdf_paths if os.path.exists(p)]
@@ -99,6 +99,6 @@ if __name__ == "__main__":
 
     # Save status report to CSV
     status_df = pd.DataFrame(results)
-    status_df.to_csv("NC/nc_bill_text_status.csv", index=False)
+    status_df.to_csv("NC/output/nc_bill_text_status.csv", index=False)
 
-    logging.info("Processing complete. Status written to NC/nc_bill_text_status.csv")
+    logging.info("Processing complete. Status written to NC/output/nc_bill_text_status.csv")
