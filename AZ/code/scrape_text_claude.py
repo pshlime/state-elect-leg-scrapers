@@ -99,11 +99,13 @@ async def scrape_text(file_path, semaphore):
 async def main():
     df = pd.read_csv("AZ/output/az_bill_text_files.csv")
     text_dir = Path("/Users/josephloffredo/MIT Dropbox/Joseph Loffredo/election_bill_text/data/arizona")
-    # Regex pattern to remove '_<number>_html.txt' at the end
-    pattern = re.compile(r"(_\d+_html\.txt)$")
+    # Regex pattern to match files ending in '_html.txt'
+    pattern = re.compile(r"_html\.txt$")
 
+    # Collect the names of subfolders (i.e., UUIDs) containing at least one matching file
     existing_uuids = {
-        pattern.sub("", f.name) for f in text_dir.rglob("*.txt")
+        f.parent.name
+        for f in text_dir.rglob("*.txt")
         if pattern.search(f.name)
     }
    
