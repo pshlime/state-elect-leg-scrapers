@@ -95,5 +95,5 @@ bill_text_files <- data.frame(
     file_name = basename(file_path),
     UUID = str_extract(file_name, "^[^_]+")) |>
   select(UUID, file_path) |>
-  write_csv("text/ar_bill_text_files")
+  write_csv("text/state-scrapers/ar_bill_text_files.csv")
 
