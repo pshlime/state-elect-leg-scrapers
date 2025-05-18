@@ -71,15 +71,6 @@ clean_html <- function(html_content) {
   return(html_content)
 }
 
-bills <- list.files(path = "UT/output/bill_metadata/", pattern = "*.json", full.names = TRUE) |>
-  map_df(~ {
-    json <- fromJSON(.x)
-    # Remove NULL elements or replace with NA
-    json[map_lgl(json, is.null)] <- NA
-    as_tibble(json)
-  })
-
-
 scrape_text <- function(UUID, session, url){
   TEXT_OUTPUT_PATH <- '/Users/josephloffredo/MIT Dropbox/Joseph Loffredo/election_bill_text/data/utah'
   
@@ -114,6 +105,14 @@ scrape_text <- function(UUID, session, url){
     
     }
 }
+
+bills <- list.files(path = "UT/output/bill_metadata/", pattern = "*.json", full.names = TRUE) |>
+  map_df(~ {
+    json <- fromJSON(.x)
+    # Remove NULL elements or replace with NA
+    json[map_lgl(json, is.null)] <- NA
+    as_tibble(json)
+  })
 
 bills |> 
   select(UUID = uuid, session, url = state_url) |>
