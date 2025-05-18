@@ -31,7 +31,15 @@ The uploaded PDF is a legislative bill. Your task is to process it as follows:
 
 If the bill contains no underlined or strikethrough text, simply output the plain text of the bill without any markup.
 
-Your response must contain ONLY the processed bill text - no introduction, explanation, or commentary of any kind.
+Your response must contain ONLY the processed bill text - no introduction, explanation, or commentary of any kind. You should always try to output the entire text of the bill. Under no circumstances should you output just what was inserted or deleted.
+
+However, please ALWAYS remove this sentence from the text you return: "Stricken language would be deleted from and underlined language would be added to the law as it existed prior to this session of the General Assembly." 
+
+Be particularly attentive to repetitive patterns of formatting in legislative documents. If you see underlining or strikethrough in one instance of similar text, check for the same pattern in related sections.
+
+Examine the full document thoroughly before beginning markup, paying special attention to standard legislative language that appears in multiple sections (like effective date clauses)
+
+When processing legislative documents with formatting that indicates amendments, make multiple passes through the document to ensure all instances of underlining and strikethrough are properly identified.
 """
 
 
@@ -95,6 +103,15 @@ async def scrape_text(pdf_path, semaphore):
 async def main():
     df = pd.read_csv("text/state-scrapers/ar_bill_text_files.csv")
     text_dir = Path("/Users/josephloffredo/MIT Dropbox/Joseph Loffredo/election_bill_text/data/arkansas")
+    # Regex pattern to remove '_<number>_html.txt' at the end
+    pattern = re.compile(r"(_\d+_html\.txt)$")
+
+    existing_uuids = {
+        pattern.sub("", f.name) for f in text_dir.rglob("*.txt")
+        if pattern.search(f.name)
+    }
+   
+    df = df[~df["UUID"].isin(existing_uuids)]
 
     pdf_paths = [p for p in df["file_path"].dropna().tolist() if os.path.exists(p)]
 
