@@ -29,7 +29,7 @@ for year in range(2001, 2015):
         tree = html.fromstring(driver.page_source)
 
         # Extract hrefs that end with .htm
-        relative_links = tree.xpath('//a[substring(@href, string-length(@href) - 3) = ".htm"]/@href')
+        relative_links = tree.xpath('//a[substring(translate(@href, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), string-length(@href) - 3) = ".htm"]/@href')
         bill_links = [f"https://www.capitol.hawaii.gov{href}" for href in relative_links]
 
         # Add session info

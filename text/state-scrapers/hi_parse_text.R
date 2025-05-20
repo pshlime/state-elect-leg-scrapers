@@ -121,4 +121,5 @@ master <- vrleg_master_file |>
 
 master |>
   select(UUID, bill_link) |>
+  filter(!is.na(bill_link)) |>
   pmap(scrape_text, .progress = TRUE)
