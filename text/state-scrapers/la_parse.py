@@ -5,6 +5,8 @@ from google import genai
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import pandas as pd
 from PyPDF2 import PdfReader, PdfWriter
+import re
+from pathlib import Path
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -93,6 +95,14 @@ def run_in_parallel(pdf_paths, max_workers=10):
 
 if __name__ == "__main__":
     df = pd.read_csv("text/state-scrapers/la_bill_text_files.csv")
+
+    text_dir = Path("/Users/josephloffredo/MIT Dropbox/Joseph Loffredo/election_bill_text/data/louisiana")
+    # Regex pattern to remove '_<number>_html.txt' at the end
+    existing_uuids = {
+        f.parent.name for f in text_dir.rglob("*_html.txt")
+    }
+   
+    df = df[~df["UUID"].isin(existing_uuids)]
 
     pdf_paths = df["file_path"].dropna().tolist()
     pdf_paths = [p for p in pdf_paths if os.path.exists(p)]
