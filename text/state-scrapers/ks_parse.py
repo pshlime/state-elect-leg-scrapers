@@ -1,16 +1,22 @@
 import os
 import logging
-from dotenv import load_dotenv
-from google import genai
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import base64
+from pathlib import Path
+import asyncio
 import pandas as pd
+import re
+from anthropic import AsyncAnthropic
+from dotenv import load_dotenv
 from PyPDF2 import PdfReader, PdfWriter
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 load_dotenv()
-GEMINI_APIKEY = os.getenv('GEMINI_APIKEY')
-client = genai.Client(api_key=GEMINI_APIKEY)
+CLAUDE_APIKEY = os.getenv('CLAUDE_APIKEY')
+client = AsyncAnthropic(api_key=CLAUDE_APIKEY)
+
+MAX_RETRIES = 10
+RETRY_BACKOFF_BASE = 3
 
 PROMPT = """IMPORTANT: Output ONLY the text of the uploaded bill with the specified markup. DO NOT summarize, analyze, or add any commentary.
 
@@ -18,7 +24,7 @@ The uploaded PDF is a legislative bill. Your task is to process it as follows:
 
 1. Identify any text that is italicized (indicating insertion) and wrap it with: <u class="amendmentInsertedText"> and </u>
 
-2. Identify any text surrounded with brackets (e.g, []) and with strikethrough (indicating deletion) and wrap it with: <strike class="amendmentDeletedText"> and </strike>
+2. Identify any text with strikethrough (indicating deletion) and wrap it with: <strike class="amendmentDeletedText"> and </strike>
 
 3. Remove any line numbers appearing in the original document.
 
@@ -26,73 +32,89 @@ The uploaded PDF is a legislative bill. Your task is to process it as follows:
 
 If the bill contains no underlined or strikethrough text, simply output the plain text of the bill without any markup.
 
+For substantial insertions or deletions that span multiple lines or paragraphs, identify the beginning and end of the entire amended block. Wrap the whole block with a single set of <u class="amendmentInsertedText"> and </u> tags (for insertions) or <strike class="amendmentDeletedText"> and </strike> tags (for deletions). Do not tag each line individually if they are part of the same continuous inserted or deleted section.
+
 Your response must contain ONLY the processed bill text - no introduction, explanation, or commentary of any kind."""
 
-def scrape_text(pdf_path):
-    """
-    Scrape text from a PDF file using Google Gemini API and save it as a .txt file.
-    
-    Args:
-        pdf_path (str): The path to the PDF file.
-    
-    Returns:
-        str: The extracted text from the PDF.
-    """
 
-    reader = PdfReader(pdf_path)
-    total_pages = len(reader.pages)
+async def scrape_text(pdf_path, semaphore):
+    async with semaphore:
+        try:
+            await asyncio.sleep(10)  # Initial sleep to respect rate limit
 
-    if total_pages > 80:
-        logging.info(f"Skipping {pdf_path}: too long ({total_pages} pages)")
-        return None
-    
-    logging.info(f"Uploading PDF file: {pdf_path}")
-    # Upload PDF
-    raw_text = client.files.upload(file=pdf_path)
-    logging.info("PDF file uploaded successfully.")
+            reader = PdfReader(pdf_path)
+            total_pages = len(reader.pages)
 
-    # Generate text using Gemini
-    logging.info("Generating text using Gemini API...")
-    response = client.models.generate_content(
-        model="gemini-2.5-flash-preview-04-17",
-        contents=[PROMPT, raw_text]
-    )
+            if total_pages > 40:
+                logging.info(f"Skipping {pdf_path}: too long ({total_pages} pages)")
+                return None
+            
+            else:
+            
+                logging.info(f"Uploading PDF file: {pdf_path}")
+                with open(pdf_path, "rb") as pdf_file:
+                    base64_string = base64.b64encode(pdf_file.read()).decode("utf-8")
 
-    # Determine .txt file path
-    logging.info("Generating text file...")
-    txt_path = f"{os.path.splitext(pdf_path)[0]}_html.txt"
+                messages = [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "document",
+                                "source": {
+                                    "type": "base64",
+                                    "media_type": "application/pdf",
+                                    "data": base64_string,
+                                },
+                            },
+                            {"type": "text", "text": PROMPT},
+                        ],
+                    }
+                ]
 
-    # Write response to text file
-    with open(txt_path, 'w', encoding='utf-8') as f:
-        f.write(response.text)
+                for attempt in range(1, MAX_RETRIES + 1):
+                    try:
+                        logging.info(f"Streaming Claude response for: {pdf_path} (attempt {attempt})")
+                        async with client.messages.stream(
+                            model="claude-4-sonnet-20250514",
+                            max_tokens=64000,
+                            messages=messages,
+                        ) as stream:
+                            response_text = ""
+                            async for chunk in stream.text_stream:
+                                response_text += chunk
+                        break  # Exit loop on success
+                    except Exception as stream_error:
+                        logging.warning(f"Stream attempt {attempt} failed for {pdf_path}: {stream_error}")
+                        if attempt == MAX_RETRIES:
+                            raise  # Final failure
+                        backoff_time = RETRY_BACKOFF_BASE * (attempt + 1)
+                        logging.info(f"Retrying in {backoff_time}s...")
+                        await asyncio.sleep(backoff_time)
 
-    # Delete uploaded PDF file
-    client.files.delete(name=raw_text.name)
+                txt_path = f"{os.path.splitext(pdf_path)[0]}_html.txt"
+                with open(txt_path, "w", encoding="utf-8") as f:
+                    f.write(response_text)
 
-    return response.text
+                logging.info(f"Completed: {pdf_path}")
+                return {"pdf_path": pdf_path, "status": "success", "text_path": txt_path}
 
-def run_in_parallel(pdf_paths, max_workers=10):
-    results = []
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        future_to_path = {executor.submit(scrape_text, path): path for path in pdf_paths}
-        for future in as_completed(future_to_path):
-            try:
-                result = future.result()
-                results.append(result)
-            except Exception as e:
-                path = future_to_path[future]
-                logging.error(f"Unexpected failure: {path} - {e}")
-                results.append({"pdf_path": path, "status": "failed", "error": str(e)})
-    return results
+        except Exception as e:
+            logging.error(f"Failed on {pdf_path}: {e}")
+            return {"pdf_path": pdf_path, "status": "failed", "error": str(e)}
 
-# ------------------ MAIN ------------------
-
-if __name__ == "__main__":
+async def main():
     df = pd.read_csv("text/state-scrapers/ks_bill_text_files.csv")
 
-    pdf_paths = df["file_path"].dropna().tolist()
-    pdf_paths = [p for p in pdf_paths if os.path.exists(p)]
+    pdf_paths = [p for p in df["file_path"].dropna().tolist() if os.path.exists(p)]
 
-    logging.info(f"Starting parallel processing on {len(pdf_paths)} files...")
+    logging.info(f"Processing {len(pdf_paths)} files with async Claude...")
 
-    results = run_in_parallel(pdf_paths, max_workers=4)
+    # Limit to 2 concurrent jobs
+    semaphore = asyncio.Semaphore(2)
+
+    tasks = [scrape_text(path, semaphore) for path in pdf_paths]
+    results = await asyncio.gather(*tasks)
+
+if __name__ == "__main__":
+    asyncio.run(main())
