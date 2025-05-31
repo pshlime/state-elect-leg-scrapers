@@ -167,4 +167,4 @@ master <- vrleg_master_file |>
 master |>
   filter(!str_detect(bill_number, "^LR")) |>
   filter(!(UUID %in% list.files(path = "/Users/josephloffredo/MIT Dropbox/Joseph Loffredo/election_bill_text/data/maine"))) |>
-  future_pmap(scrape_text)
+  pmap(scrape_text)
