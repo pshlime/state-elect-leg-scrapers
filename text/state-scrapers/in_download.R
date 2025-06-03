@@ -1,6 +1,6 @@
 ##################################################
 ## Project: State Election Legislation Scrapers
-## Script purpose: Download LA Text
+## Script purpose: Download IN Text
 ## Date: June 2025
 ## Author: Joe Loffredo
 ##################################################
@@ -201,5 +201,4 @@ master <- vrleg_master_file |>
 
 master |>
   filter(!(UUID %in% list.files(path = "/Users/josephloffredo/MIT Dropbox/Joseph Loffredo/election_bill_text/data/indiana"))) |>
-  filter(bill_type %in% c('SB','SJ','SR')) |>
   future_pmap(scrape_text)
