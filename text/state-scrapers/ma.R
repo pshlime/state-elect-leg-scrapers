@@ -34,23 +34,24 @@ scrape_text <- function(UUID, session, bill_number) {
     message(glue("Failed to fetch {UUID} - status code: {response$status_code}"))
     return(NULL)
   } else{
-    dir_create(glue("{TEXT_OUTPUT_PATH}/{UUID}"))
     
     page_text <- httr::content(response, "text")
     page <- read_html(page_text)
     
     text_link <- page |> html_nodes("a") |> html_attr("href") |> str_subset("/Text")
-    text_link <- glue("https://malegislature.gov{text_link}")
-    
-    text <- read_html(text_link) |> 
-      html_nodes("body") |> 
-      html_text() |> 
-      paste(collapse = "\n") |>
-      str_trim() |>
-      str_squish()
-    
-    write_lines(text, glue("{TEXT_OUTPUT_PATH}/{UUID}/{UUID}_html.txt"))
-    
+    if(!is_empty(text_link)){
+      dir_create(glue("{TEXT_OUTPUT_PATH}/{UUID}"))
+      text_link <- glue("https://malegislature.gov{text_link}")
+      
+      text <- read_html(text_link) |> 
+        html_nodes("body") |> 
+        html_text() |> 
+        paste(collapse = "\n") |>
+        str_trim() |>
+        str_squish()
+      
+      write_lines(text, glue("{TEXT_OUTPUT_PATH}/{UUID}/{UUID}_html.txt"))
+    }
   }
 }
 
