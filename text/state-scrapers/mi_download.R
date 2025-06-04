@@ -83,19 +83,29 @@ master <- vrleg_master_file |>
 master |>
   future_pmap(scrape_text)
 
+
 bill_text_files <- data.frame(
   file_path = list.files(path = "/Users/josephloffredo/MIT Dropbox/Joseph Loffredo/election_bill_text/data/michigan", pattern = "*.txt", full.names = TRUE, recursive = TRUE)) |>
   mutate(
     file_name = basename(file_path),
-    UUID = str_remove(file_path, file_name) |> basename(),
-    # Extract version number from filename
-    version = str_extract(file_name, "v(\\d+)") |> str_remove("v") |> as.numeric()
-  ) |>
-  # Keep only the row with maximum version for each UUID
-  group_by(UUID) |>
-  slice_max(version, n = 1, with_ties = FALSE) |>
-  ungroup() |>
+    UUID = str_remove(file_path, file_name) |> basename()) |>
   select(UUID, file_path) |>
   write_csv("text/state-scrapers/mi_bill_text_files.csv")
+
+#bill_text_files <- data.frame(
+#  file_path = list.files(path = "/Users/josephloffredo/MIT Dropbox/Joseph Loffredo/election_bill_text/data/michigan", pattern = "*.txt", full.names = TRUE, recursive = TRUE)) |>
+#  filter(!str_detect(file_path, "processed|MI2014|MI2013|MI2012|MI2011")) |>
+#  mutate(
+#    file_name = basename(file_path),
+#    UUID = str_remove(file_path, file_name) |> basename(),
+#    # Extract version number from filename
+#    version = str_extract(file_name, "v(\\d+)") |> str_remove("v") |> as.numeric()
+#  ) |>
+#  # Keep only the row with maximum version for each UUID
+#  group_by(UUID) |>
+#  slice_max(version, n = 1, with_ties = FALSE) |>
+#  ungroup() |>
+#  select(UUID, file_path) |>
+#  write_csv("text/state-scrapers/mi_bill_text_files.csv")
 
 
