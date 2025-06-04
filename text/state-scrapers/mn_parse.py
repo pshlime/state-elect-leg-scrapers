@@ -166,8 +166,8 @@ async def main():
 
     logging.info(f"Processing {len(rtf_paths)} RTF files with async Claude...")
 
-    # Limit to 4 concurrent jobs
-    semaphore = asyncio.Semaphore(4)
+    # Limit to 5 concurrent jobs
+    semaphore = asyncio.Semaphore(5)
 
     tasks = [scrape_text(path, semaphore) for path in rtf_paths]
     results = await asyncio.gather(*tasks)
