@@ -281,7 +281,7 @@ gs_list <- gs_list |>
     bill_number = str_extract(bill_number, "[0-9]+$"),
     bill_type_uuid = case_match(
       bill_type,
-      "HB" ~ "H",
+      "AB" ~ "A",
       "SB" ~ "S",
       .default = bill_type
     ),
@@ -289,7 +289,7 @@ gs_list <- gs_list |>
     UUID = glue("CA{year}{bill_type_uuid}{bill_number}"),
     bill_number = glue("{bill_type} {bill_number}")
   ) |>
-  select(UUID, session, bill_number)
+  select(UUID, session, bill_number) 
 
 ca_master <- vrleg_master_file |> 
   filter(STATE == 'CA' & YEAR %in% c(1995:2014)) |>
