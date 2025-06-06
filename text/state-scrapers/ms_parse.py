@@ -170,8 +170,8 @@ async def main():
 
     logging.info(f"Processing {len(pdf_paths)} files with async Claude...")
 
-    # Limit to 3 concurrent jobs
-    semaphore = asyncio.Semaphore(3)
+    # Limit to 4 concurrent jobs
+    semaphore = asyncio.Semaphore(4)
 
     tasks = [scrape_text(path, semaphore) for path in pdf_paths]
     results = await asyncio.gather(*tasks)
