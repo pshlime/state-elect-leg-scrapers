@@ -38,6 +38,7 @@ Each step lives in `conversion_functions/<step_name>.py` and can be run independ
 - Run start.py with:
   `python code\start.py`
   This will take about 15 minutes, with intermediate print outs, then subsequent queries will be instant.
+  I have already ran this for you to generate the intermediate JSONs, but if the conversion scripts are updated, then you must rerun start.py 
 - Query any bill with:
   # Query by state, session, and bill id
   `python query.py --state NV --session 70th1999 --state_bill_id AB444`
