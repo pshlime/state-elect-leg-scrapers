@@ -41,10 +41,10 @@ Each step lives in `conversion_functions/<step_name>.py` and can be run independ
   I have already ran this for you to generate the intermediate JSONs, but if the conversion scripts are updated, then you must rerun start.py 
 - Query any bill with:
   # Query by state, session, and bill id
-  `python query.py --state NV --session 70th1999 --state_bill_id AB444`
+  `python code\query.py --state NV --session 70th1999 --state_bill_id AB444`
 
   # Query by UUID only and dump to file
-  `python query.py --uuid NV70th1999AB444`
+  `python code\query.py --uuid NV70th1999AB444`
 
   With the resulting JSON of the query in `output/query/NV70th1999AB444.json`
 

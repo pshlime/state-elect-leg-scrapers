@@ -13,13 +13,13 @@ def main():
     p = argparse.ArgumentParser(
         description="Query bill data by uuid, state, session, state_bill_id",
         formatter_class=RawDescriptionHelpFormatter,
-        epilog="""
+        epilog=r"""
 Examples:
   # Query by state, session, and bill id
-  python query.py --state NV --session 70th1999 --state_bill_id AB444 > result.json
+  python code\query.py --state NV --session 70th1999 --state_bill_id AB444 > result.json
 
   # Query by UUID only and dump to file
-  python query.py --uuid NV70th1999AB444 > result.json
+  python code\query.py --uuid NV70th1999AB444 > result.json
 """
     )
     p.add_argument("--uuid")
