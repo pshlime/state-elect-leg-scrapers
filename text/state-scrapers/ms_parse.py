@@ -15,7 +15,7 @@ load_dotenv()
 CLAUDE_APIKEY = os.getenv('CLAUDE_APIKEY')
 client = AsyncAnthropic(api_key=CLAUDE_APIKEY)
 
-MAX_RETRIES = 4
+MAX_RETRIES = 2
 RETRY_BACKOFF_BASE = 3
 
 PROMPT = """IMPORTANT: Output ONLY the text of the uploaded bill with the specified markup. DO NOT summarize, analyze, or add any commentary.
@@ -171,7 +171,7 @@ async def main():
     logging.info(f"Processing {len(pdf_paths)} files with async Claude...")
 
     # Limit to 4 concurrent jobs
-    semaphore = asyncio.Semaphore(4)
+    semaphore = asyncio.Semaphore(5)
 
     tasks = [scrape_text(path, semaphore) for path in pdf_paths]
     results = await asyncio.gather(*tasks)
