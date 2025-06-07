@@ -7,6 +7,7 @@ import requests
 from io import BytesIO
 from bs4 import BeautifulSoup
 from bs4.element import Tag
+from tqdm import tqdm
 
 import logging
 
@@ -391,8 +392,7 @@ def extract_act(html_url, pdf_url=''):
 def process_metadata(input_dir, output_dir):
     status_map = load_all_statuses()
     os.makedirs(output_dir, exist_ok=True)
-
-    for jf in glob.glob(os.path.join(input_dir,'bills_*.json')):
+    for jf in tqdm(glob.glob(os.path.join(input_dir,'bills_*.json')), desc="Processing metadata"):
         recs = json.load(open(jf, encoding='utf8'))
         out = []
         for r in recs:

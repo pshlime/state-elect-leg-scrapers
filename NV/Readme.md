@@ -1,6 +1,6 @@
 # Nevada Legislative Data Pipeline
 
-A multi-stage Python toolkit to scrape, parse, and combine Nevada legislative data (bills, summaries, statuses, sponsors, history, votes) into unified JSON outputs.
+A multi-stage Python toolkit to scrape, parse, and combine Nevada legislative data (bills, summaries, statuses, sponsors, history, votes) into unified JSON outputs. 
 
 ---
 
@@ -20,19 +20,31 @@ It is organized into discrete steps:
 4. **History Parsing**  
 5. **Votes Parsing**  
 6. **Combine All Outputs**
+7. **Query any State Bill**
+
 
 Each step lives in `conversion_functions/<step_name>.py` and can be run independently or all at once via the top-level launcher.
 
 ---
 
-## ⚙️ Prerequisites
+## ⚙️ Steps
 
 - Python 3.8+  
 - Install dependencies with a virtual environment:
-  python -m venv .venv
-  source .venv/bin/activate
-  pip install -r requirements.txt
+  `python -m venv .venv`
+  `.venv\Scripts\activate`
+  `pip install -r requirements.txt`
+- Run start.py with:
+  `python code\start.py`
+  This will take about 15 minutes, with intermediate print outs, then subsequent queries will be instant.
+- Query any bill with:
+  # Query by state, session, and bill id
+  `python query.py --state NV --session 70th1999 --state_bill_id AB444`
 
+  # Query by UUID only and dump to file
+  `python query.py --uuid NV70th1999AB444`
+
+  With the resulting JSON of the query in `output/query/NV70th1999AB444.json`
 
 
 
@@ -48,7 +60,7 @@ Each step lives in `conversion_functions/<step_name>.py` and can be run independ
 │   ├── history.py              # Step 7: Parse bill history actions
 │   ├── votes.py                # Step 8: Parse roll-call votes
 │   └── combiner.py             # Step 9: Stitch everything into 4 big JSONs
-│
+│   └── query.py                # Step 10: Query any bill using either UUID or state, state_bill_id, and session as arguments
 │
 ├── intermediate/               # ← Default working area
 │   ├── index_to_json/          # raw JSONs outputs from the bill index sites
@@ -62,7 +74,9 @@ Each step lives in `conversion_functions/<step_name>.py` and can be run independ
 │   ├── bill_metadata.json
 │   ├── sponsors.json
 │   ├── bill_history.json
-│   └── votes.json
+│   ├── votes.json
+│   └── query/                  # ← Final output of Bills you queried, returned as JSONs
+│       └── 
 │
 ├── requirements.txt
 └── README.md

@@ -5,6 +5,7 @@ import json
 import re
 import requests
 from bs4 import BeautifulSoup
+from tqdm import tqdm
 from urllib.parse import urljoin
 from datetime import datetime
 
@@ -142,7 +143,7 @@ def parse_votes(detail_url, session):
 def process_votes(input_dir, output_dir):
     os.makedirs(output_dir, exist_ok=True)
     # process each input JSON file instead of CSV
-    for json_path in glob.glob(os.path.join(input_dir, 'bills_*.json')):
+    for json_path in tqdm(glob.glob(os.path.join(input_dir, 'bills_*.json')), desc="Processing votes"):
         rows_out = []
         with open(json_path, 'r', encoding='utf8') as rf:
             records = json.load(rf)

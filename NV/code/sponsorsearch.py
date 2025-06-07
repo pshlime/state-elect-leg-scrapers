@@ -3,6 +3,7 @@ from bs4 import BeautifulSoup
 import json
 import os
 import urllib.parse
+from tqdm import tqdm
 
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 
@@ -81,7 +82,7 @@ def scrape_session(session_code, input_dir, output_dir):
 
 def sponsor_search(input_dir, output_dir):
     sessions = ["70th1999", "71st2001", "72nd2003", "73rd2005", "74th2007"]
-    for sess in sessions:
+    for sess in tqdm(sessions, desc="Sponsor search"):
         scrape_session(sess, input_dir, output_dir)
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
-import os, glob, csv, json, re
-import requests
+import os, glob, csv, json, re, requests
 from datetime import datetime
 from bs4 import BeautifulSoup
+from tqdm import tqdm
 
 # ---------------------------------------------------
 # replace your DATE_PATTERNS entirely with this:
@@ -398,8 +398,7 @@ def parse_history_73rd(soup):
     bh_lbl = content.find(lambda t: t.name in ("strong","b") and "Bill History" in t.text)
     if bh_lbl:
         for a in bh_lbl.find_all_next("a", href=lambda h: h and "JournalPopup" in h):
-            date_raw  = a.get_text(strip=True)
-            date_iso  = parse_date(date_raw)
+            date = parse_date(a.get_text(strip=True))
             tr_date   = a.find_parent("tr")
             tr_action = tr_date.find_next_sibling("tr")
             if not tr_action:
@@ -408,9 +407,9 @@ def parse_history_73rd(soup):
             if not li:
                 continue
             action_txt = " ".join(li.stripped_strings)
-            pref       = prefix_for(action_txt)
-            act        = action_txt if action_txt.startswith(pref) else pref + action_txt
-            entries.append({"date": date_iso, "action": act})
+            pref = prefix_for(action_txt)
+            act  = action_txt if action_txt.startswith(pref) else pref + action_txt
+            entries.append({"date": date, "action": act})
 
     # --- 4) sort chronologically & re-index 1→N ---
     entries.sort(key=lambda ev: ev["date"])
@@ -570,7 +569,7 @@ def parse_history_74th(soup):
 
 def process_history(input_dir, output_dir):
     os.makedirs(output_dir, exist_ok=True)
-    for json_path in glob.glob(os.path.join(input_dir, "bills_*.json")):
+    for json_path in tqdm(glob.glob(os.path.join(input_dir, "bills_*.json")), desc="Processing history"):
         out_rows = []
         with open(json_path, 'r', encoding='utf8') as rf:
             records = json.load(rf)

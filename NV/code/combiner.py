@@ -3,6 +3,7 @@ import os
 import glob
 import json
 import argparse
+from tqdm import tqdm
 
 def combine_folder(folder_path, recursive=False):
     """
@@ -12,7 +13,7 @@ def combine_folder(folder_path, recursive=False):
     pattern = '**/*.json' if recursive else '*.json'
     files = glob.glob(os.path.join(folder_path, pattern), recursive=recursive)
     combined = []
-    for fp in files:
+    for fp in tqdm(files, desc=f"Combining {os.path.basename(folder_path)}"):
         try:
             with open(fp, 'r', encoding='utf-8') as f:
                 data = json.load(f)

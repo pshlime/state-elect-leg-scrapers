@@ -1,11 +1,12 @@
 import os, sys, glob, csv, re, json, requests
 from datetime import datetime
 from bs4 import BeautifulSoup
+from tqdm import tqdm
 
 def process_basedata(input_dir, output_dir):
     """Add uuid, state, session, state_bill_id."""
     os.makedirs(output_dir, exist_ok=True)
-    for json_path in glob.glob(os.path.join(input_dir, 'bills_*.json')):
+    for json_path in tqdm(glob.glob(os.path.join(input_dir, 'bills_*.json')), desc="Processing basedata"):
         rows = []
         with open(json_path, encoding='utf8') as rf:
             data = json.load(rf)

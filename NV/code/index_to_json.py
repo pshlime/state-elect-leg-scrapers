@@ -3,6 +3,7 @@ from bs4 import BeautifulSoup
 import os
 import re
 import json  # add JSON support
+from tqdm import tqdm
 
 
 
@@ -38,7 +39,7 @@ def bill_index_to_json(script_dir):
     ]
 
     # Process each website in the list.
-    for site in websites:
+    for site in tqdm(websites, desc="Indexing sessions"):
         bill_data = {}  # Reset data for each site.
         url = site["url"]
         filenickname = site["nickname"]

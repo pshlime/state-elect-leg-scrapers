@@ -28,3 +28,5 @@ if __name__ == '__main__':
     
     # Finally, combine all the JSON files into a single output directory
     process_combiner(input_dir="intermediate", output_dir="output")
+
+    print("All processing complete. Output files are in the 'output' directory.")

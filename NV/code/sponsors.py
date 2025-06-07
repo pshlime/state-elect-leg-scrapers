@@ -4,6 +4,7 @@ import glob
 import json
 import requests
 from bs4 import BeautifulSoup
+from tqdm import tqdm
 
 # ———————————————————————————————————————————————————————————————
 # utils
@@ -175,7 +176,7 @@ def parse_sponsors(session, link, state_bill_id):
 
 def process_sponsors(input_dir, output_dir):
     os.makedirs(output_dir, exist_ok=True)
-    for inp in glob.glob(os.path.join(input_dir, "bills_*.json")):
+    for inp in tqdm(glob.glob(os.path.join(input_dir, "bills_*.json")), desc="Processing sponsors"):
         out = []
         print(f"Processing {inp}")
         with open(inp, encoding='utf8') as f:
