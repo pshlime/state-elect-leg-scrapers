@@ -424,6 +424,10 @@ def process_metadata(input_dir, output_dir):
             else:
                 stat = status_map.get(sess,{}).get(prefix,{}).get(bill_id,'') or ''
 
+            # override plain 'Governor' or 'Chapter ###.' statuses
+            if re.match(r'^(governor|chapter\s*\d+\.?)$', stat, re.I):
+                stat = 'Approved by Governor'
+
             # metadata / title
             detail_url    = r.get('Link','')
             html_link, pdf_link = find_version_links(detail_url)
