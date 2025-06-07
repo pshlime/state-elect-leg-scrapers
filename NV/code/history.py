@@ -567,6 +567,72 @@ def parse_history_74th(soup):
     entries.sort(key=lambda ev: ev["date"])
     return {i+1: ev for i, ev in enumerate(entries)}
 
+def adjust_prefix(bill_history, bill_id):
+    # choose S or A if bill_id starts with that letter
+    bid = bill_id.upper()
+    if bid.startswith('S'):
+        base = 'S - '
+    elif bid.startswith('A'):
+        base = 'A - '
+    else:
+        return bill_history
+    # find the first "Introduced By" entry index
+    idxs = sorted(bill_history.keys())
+    first_intro = next((i for i in idxs
+                        if 'introduced by' in bill_history[i]['action'].lower()), None)
+    if first_intro is None:
+        return bill_history
+    end = first_intro + 1  # include the "Read first time" action right after
+    for i in idxs:
+        if i <= end:
+            # strip existing prefix like "P - ", "A - ", "S - "
+            act = re.sub(r'^[A-Z]\s*-\s*', '', bill_history[i]['action'])
+            bill_history[i]['action'] = base + act
+    # infer chamber transitions based on “To Senate” / “To Assembly” markers
+    keys = sorted(bill_history.keys(), key=int)
+    governor_applied = False
+    for idx in keys:
+        action = bill_history[idx]['action']
+        raw = re.sub(r'^[A-Z]\s*-\s*', '', action)
+        low = raw.lower()
+
+        if not governor_applied and 'governor' in low:      # first gov transition
+            governor_applied = True
+            # find last explicit S/A prefix before this point
+            prior = [j for j in keys if j<idx and bill_history[j]['action'].startswith(('S - ','A - '))]
+            anchor = max(prior) if prior else None
+            # apply origin‐chamber prefix to entries up through this transition
+            if anchor:
+                orig = bill_history[anchor]['action'][0]
+                for k in keys:
+                    if anchor<k<=idx:
+                        txt = re.sub(r'^[A-Z]\s*-\s*', '', bill_history[k]['action'])
+                        bill_history[k]['action'] = f"{orig} - {txt}"
+            # prefix all later entries G -
+            for k in keys:
+                if k>idx:
+                    txt = re.sub(r'^[A-Z]\s*-\s*', '', bill_history[k]['action'])
+                    bill_history[k]['action'] = f"G - {txt}"
+            continue
+
+        if 'to senate' in low:
+            origin, dest = 'A', 'S'
+        elif 'to assembly' in low:
+            origin, dest = 'S', 'A'
+        else:
+            continue
+
+        # existing S/A transition logic...
+        prior_idxs = [j for j in keys if j<idx and bill_history[j]['action'].startswith(f"{origin} - ")]
+        anchor = max(prior_idxs) if prior_idxs else 0
+        for k in keys:
+            if anchor<k<=idx:
+                txt = re.sub(r'^[A-Z]\s*-\s*', '', bill_history[k]['action'])
+                bill_history[k]['action'] = f"{origin} - {txt}"
+        # after transfer, subsequent entries default to dest until changed again
+
+    return bill_history
+
 def process_history(input_dir, output_dir):
     os.makedirs(output_dir, exist_ok=True)
     for json_path in tqdm(glob.glob(os.path.join(input_dir, "bills_*.json")), desc="Processing history"):
@@ -591,6 +657,8 @@ def process_history(input_dir, output_dir):
                 else:
                     # unknown session: skip this record
                     continue
+                # adjust initial prefixes based on state_bill_id
+                bill_history = adjust_prefix(bill_history, row.get('state_bill_id', ''))
                 out_rows.append({**row, "bill_history": bill_history})
 
         # write output JSON

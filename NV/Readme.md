@@ -18,6 +18,7 @@ It is organized into discrete steps:
 2. **Base Data → Metadata**  
 3. **Sponsor Search & Sponsor Parsing**  
 4. **History Parsing**  
+     Where A -, S -, G -, P - prefixes indicate Assmebly, Senate, Govenor, and Previous action's prefix is likely correct, but it was ambiguous
 5. **Votes Parsing**  
 6. **Combine All Outputs**
 7. **Query any State Bill**
@@ -57,7 +58,7 @@ Each step lives in `conversion_functions/<step_name>.py` and can be run independ
 │   ├── metadata.py             # Step 4: Summaries, statuses, AN ACT titles
 │   ├── sponsorsearch.py        # Step 5a: Scrape primary/cosponsor lists  
 │   ├── sponsors.py             # Step 6b: Adds Sponsors and Cosponsors to their respective bills
-│   ├── history.py              # Step 7: Parse bill history actions
+│   ├── history.py              # Step 7: Parse bill history actions, see above for prefix details
 │   ├── votes.py                # Step 8: Parse roll-call votes
 │   └── combiner.py             # Step 9: Stitch everything into 4 big JSONs
 │   └── query.py                # Step 10: Query any bill using either UUID or state, state_bill_id, and session as arguments
