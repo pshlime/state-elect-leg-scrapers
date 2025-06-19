@@ -2,7 +2,20 @@ library(tidyverse)
 library(glue)
 library(jsonlite)
 
-old_session_bills <- fromJSON("PA/pennsylvania_sessions_ids.json") |> janitor::clean_names()
+old_session_bills <- fromJSON("PA/pennsylvania_sessions_ids.json") |> janitor::clean_names() |>
+  mutate(
+    bill_type = str_extract(bill_number, "^[A-Z]+"),
+    bill_type_uuid = case_match(
+      bill_type,
+      "HB" ~ "H",
+      "SB" ~ "S",
+      .default = bill_type
+    ),
+    bill_number_uuid = str_extract(bill_number, "[0-9]+$"),
+    year = str_extract(session, "^[0-9]{4}"),
+    UUID = glue("PA{year}{bill_type_uuid}{bill_number_uuid}")
+  ) |>
+  select(UUID, session, bill_number)
 
 vrleg_master_file <- readRDS("~/Desktop/GitHub/election-roll-call/bills/vrleg_master_file.rds")
 pa_master <- vrleg_master_file |> 
@@ -37,7 +50,7 @@ pa_master <- vrleg_master_file |>
     bill_number = str_extract(bill_id, "[0-9]+$"),
     bill_number = glue("{bill_type} {bill_number}")
   ) |>
-  select(session, bill_number)
+  select(UUID, session, bill_number)
 
 bills_to_process <- bind_rows(pa_master,old_session_bills) |> distinct()
 
