@@ -5,22 +5,38 @@
 ## Author: Joe Loffredo
 ##################################################
 
+rm(list = ls())
+gc()
+
 library(tidyverse)
 library(jsonlite)
 library(glue)
 library(rvest)
+library(furrr)
 
-rm(list = ls())
-gc()
+plan(multisession, workers = 11)
 
 OUTPUT_PATH <- 'CA/output'
 ca_roll_call <- readRDS('~/Dropbox (MIT)/previous_leg_files/CA/ca_roll_call.rds')
 
 # Functions ---------------------------------------------------------------
+safe_call <- function(expr, label) {
+  tryCatch(
+    expr,
+    error = function(e) {
+      message(glue::glue("Error in {label}: {e$message}"))
+      return(NULL)
+    }
+  )
+}
+
 # Format bill base URL
 build_url <- function(session, bill_number){
   # Transform session identifier to match URL format
   session_id <- case_match(session,
+    '2013-2014' ~ '1314',
+    '2011-2012' ~ '1112',
+    '2009-2010' ~ '0910',
     '2007-2008' ~ '0708',
     '2005-2006' ~ '0506',
     '2003-2004' ~ '0304',
@@ -48,6 +64,7 @@ get_page_links <- function(state_url){
 
 # Get bill metadata
 get_bill_metadata <- function(uuid, session, bill_number, state_url, page_links){
+  OUTPUT_PATH <- 'CA/output'
   # Scrape bill status page
   status_url <- page_links |> str_subset("_status")
   status_page_text <- read_html(status_url) |> html_text()
@@ -94,6 +111,7 @@ get_bill_metadata <- function(uuid, session, bill_number, state_url, page_links)
 
 # Get bill sponsors
 get_bill_sponsors <- function(uuid, session, bill_number, page_links){
+  OUTPUT_PATH <- 'CA/output'
   # Scrape bill status page
   status_url <- page_links |> str_subset("_status")
   status_page_text <- read_html(status_url) |> html_text()
@@ -137,6 +155,7 @@ get_bill_sponsors <- function(uuid, session, bill_number, page_links){
 }
 
 get_bill_history <- function(uuid, session, bill_number, page_links){
+  OUTPUT_PATH <- 'CA/output'
   # Scrape bill history page
   history_url <- page_links |> str_subset("_history")
   history_page_text <- read_html(history_url) |> html_text() |> str_remove_all("COMPLETE BILL HISTORY")
@@ -186,6 +205,7 @@ get_bill_history <- function(uuid, session, bill_number, page_links){
 }
 
 get_votes <- function(uuid, session, bill_number){
+  OUTPUT_PATH <- 'CA/output'
   # Retrieve votes
   output_votes <- ca_roll_call |> filter(session == !!session, state_bill_id == bill_number) |>
     mutate(uuid = uuid) |> 
@@ -203,11 +223,18 @@ get_votes <- function(uuid, session, bill_number){
 }
 
 scrape_bill <- function(UUID, session = NA, bill_number = NA){
+  message(UUID)
   year <- str_extract(UUID, "[0-9]{4}")
   
   if(is.na(session)){
     session <- case_match(
       year,
+      "2014" ~ "2013-2014",
+      "2013" ~ "2013-2014",
+      "2012" ~ "2011-2012",
+      "2011" ~ "2011-2012",
+      "2010" ~ "2009-2010",
+      "2009" ~ "2009-2010",
       "2008" ~ "2007-2008",
       "2007" ~ "2007-2008",
       "2006" ~ "2005-2006",
@@ -237,8 +264,63 @@ scrape_bill <- function(UUID, session = NA, bill_number = NA){
   state_url <- build_url(session, bill_number)
   page_links <- get_page_links(state_url)
   
-  get_bill_metadata(UUID, session, bill_number, state_url, page_links)
-  get_bill_sponsors(UUID, session, bill_number, page_links)
-  get_bill_history(UUID, session, bill_number, page_links)
-  get_votes(UUID, session, bill_number)
+  safe_call(get_bill_metadata(UUID, session, bill_number, state_url, page_links), "get_bill_metadata")
+  safe_call(get_bill_sponsors(UUID, session, bill_number, page_links), "get_bill_sponsors")
+  safe_call(get_bill_history(UUID, session, bill_number, page_links), "get_bill_history")
+  safe_call(get_votes(UUID, session, bill_number), "get_votes")
 }
+
+# Process bill list -------------------------------------------------------
+vrleg_master_file <- readRDS("~/Desktop/GitHub/election-roll-call/bills/vrleg_master_file.rds")
+
+gs_list <- googlesheets4::read_sheet('1aLYLTXjLK7jKMi04_PgWbN9bSMdQxLVdLasWURcbu4s') |> janitor::clean_names()
+gs_list <- gs_list |> 
+  mutate(
+    bill_number = str_replace(bill_number, "\\s",""),
+    bill_type = str_extract(bill_number, "^[A-Z]+"),
+    bill_number = str_extract(bill_number, "[0-9]+$"),
+    bill_type_uuid = case_match(
+      bill_type,
+      "AB" ~ "A",
+      "SB" ~ "S",
+      .default = bill_type
+    ),
+    year = str_extract(session, "^[0-9]{4}"),
+    UUID = glue("CA{year}{bill_type_uuid}{bill_number}"),
+    bill_number = glue("{bill_type} {bill_number}")
+  ) |>
+  select(UUID, session, bill_number) 
+
+ca_master <- vrleg_master_file |> 
+  filter(STATE == 'CA' & YEAR %in% c(1995:2014)) |>
+  mutate(
+    bill_id = str_remove_all(UUID, "CA"),
+    session = str_extract(bill_id, "^[0-9]{4}"),
+    bill_type = str_extract(bill_id, "[A-Z]+"),
+    bill_type = case_match(
+      bill_type,
+      "A" ~ "AB",
+      "S" ~ "SB",
+      .default = bill_type
+    ),
+    bill_number = str_extract(bill_id, "[0-9]+$"),
+    session = case_when(
+      session %in% c('1995','1996') ~ '1995-1996',
+      session %in% c('1997','1998') ~ '1997-1998',
+      session %in% c('1999','2000') ~ '1999-2000',
+      session %in% c('2001','2002') ~ '2001-2002',
+      session %in% c('2003','2004') ~ '2003-2004',
+      session %in% c('2005','2006') ~ '2005-2006',
+      session %in% c('2007','2008') ~ '2007-2008',
+      session %in% c('2009','2010') ~ '2009-2010',
+      session %in% c('2011','2012') ~ '2011-2012',
+      session %in% c('2013','2014') ~ '2013-2014'
+    ),
+    bill_number = glue("{bill_type} {bill_number}")
+  ) |>
+  select(UUID, session, bill_number)
+
+bills_to_process <- bind_rows(ca_master,gs_list) |> distinct()
+
+bills_to_process |> future_pmap(scrape_bill)
+
