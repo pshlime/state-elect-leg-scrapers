@@ -10,8 +10,8 @@ from combiner import process_combiner
 
 if __name__ == '__main__':
     #Create the Base Set of JSON files
-    bill_index_to_json(script_dir="intermediate/index_to_json")
-    process_basedata(input_dir="intermediate/index_to_json", output_dir="intermediate/basedata")
+    bill_index_to_json(script_dir="NV/intermediate/index_to_json")
+    process_basedata(input_dir="NV/intermediate/index_to_json", output_dir="NV/intermediate/basedata")
 
 
 
@@ -19,14 +19,14 @@ if __name__ == '__main__':
     #Then u can run any or all of the following functions to process the data.
     #Just make sure to run sponsor_search before process_sponsors
 
-    process_metadata(input_dir="intermediate/basedata", output_dir="intermediate/metadata")
-    sponsor_search(input_dir="intermediate/basedata", output_dir="intermediate/sponsors")
-    process_sponsors(input_dir="intermediate/basedata", output_dir="intermediate/sponsors")
-    process_history(input_dir="intermediate/basedata", output_dir="intermediate/history")
-    process_votes(input_dir="intermediate/basedata", output_dir="intermediate/votes")
+    process_metadata(input_dir="NV/intermediate/basedata", output_dir="NV/intermediate/metadata")
+    sponsor_search(input_dir="NV/intermediate/basedata", output_dir="NV/intermediate/sponsors")
+    process_sponsors(input_dir="NV/intermediate/basedata", output_dir="NV/intermediate/sponsors")
+    process_history(input_dir="NV/intermediate/basedata", output_dir="NV/intermediate/history")
+    process_votes(input_dir="NV/intermediate/basedata", output_dir="NV/intermediate/votes")
     
     
     # Finally, combine all the JSON files into a single output directory
-    process_combiner(input_dir="intermediate", output_dir="output")
+    process_combiner(input_dir="NV/intermediate", output_dir="NV/output")
 
     print("All processing complete. Output files are in the 'output' directory.")
