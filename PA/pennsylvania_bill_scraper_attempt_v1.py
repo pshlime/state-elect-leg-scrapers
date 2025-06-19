@@ -3,27 +3,46 @@ import requests
 import os
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
+import re
+import sys
 
-try:
-    with open("/Users/justin/Desktop/GitHub.nosync/State_Legislation/state-elect-leg-scrapers/PA/pennsylvania_session_ids.json", "r") as file:
-        bill_data = json.load(file)
-except FileNotFoundError:
-    print("Error: pennsylvania_session_ids.json not found")
-    bill_data = [] 
-except json.JSONDecodeError:
-    print("Error: pennsylvania_session_ids.json is not valid JSON.")
-    bill_data = []
+bill_data = []
+session_data = []
 
+file_path = '/Users/justin/Desktop/GitHub.nosync/State_Legislation/state-elect-leg-scrapers/PA/pennsylvania_session_ids.json'
 
-try:
-    with open("/Users/justin/Desktop/GitHub.nosync/State_Legislation/state-elect-leg-scrapers/PA/pennsylvania_session_ids.json", "r") as file:
-        session_data = json.load(file)
-except FileNotFoundError:
-    print("Error: pennsylvania_session_ids.json not found. get_session_id may not function as expected.")
-    session_data = []
-except json.JSONDecodeError:
-    print("Error: pennsylvania_session_ids.json is not valid JSON.")
-    session_data = []
+# def prompt_and_load_json():
+#     """
+#     Prompts the user for the path to the JSON file and loads it.
+#     It will keep prompting until a valid file path and JSON are provided.
+
+#     Returns:
+#         The loaded data from the JSON file, or None if loading fails.
+#     """
+#     while True:
+#         file_path = input("Please enter the full path to the pennsylvania_session_ids.json file: ").strip()
+#         if not file_path:
+#             print("Path cannot be empty. Please try again.")
+#             continue
+        
+#         if file_path.startswith(('"', "'")) and file_path.endswith(('"', "'")):
+#             file_path = file_path[1:-1]
+
+#         try:
+#             with open(file_path, "r") as file:
+#                 data = json.load(file)
+#             print(f"Successfully loaded data from: {file_path}")
+#             return data
+#         except FileNotFoundError:
+#             print(f"Error: The file was not found at '{file_path}'. Please check the path and try again.")
+#         except json.JSONDecodeError:
+#             print(f"Error: The file at '{file_path}' is not a valid JSON file. Please check the file content.")
+#         except Exception as e:
+#             print(f"An unexpected error occurred: {e}")
+        
+#         retry = input("Try again? (y/n): ").lower()
+#         if retry != 'y':
+#             return None
 
 
 def get_bill_data(session, bill_number):
@@ -230,7 +249,6 @@ def scrape_bill_metadata(uuid, state_abbr, bill_state_id, session_name_str):
             
             bill_html_path = bill_text_html(soup, bill_url_path, headers)
 
-            # successful
             bill_metadata_dict = {
                 "uuid": uuid,
                 "state": state_abbr,
@@ -239,7 +257,7 @@ def scrape_bill_metadata(uuid, state_abbr, bill_state_id, session_name_str):
                 "sponsors": sponsors_list,
                 "actions": actions_list,
                 "state_url": bill_url_path,
-                "html_path": bill_html_path
+                "bill_text_html": bill_html_path
             }
             internal_id_val = "(HTML Source)"
             return bill_metadata_dict, internal_id_val
@@ -277,50 +295,66 @@ def scrape_single_bill(session_input_str, bill_number_input_str):
 
     if raw_bill_html and raw_bill_html != "N/A":
         cleaned_bill_text = extract_text_from_pre_tags(raw_bill_html)
-        
         bill_metadata["cleaned_bill_text"] = cleaned_bill_text
-
     else:
         bill_metadata["cleaned_bill_text"] = "N/A"
 
 
     bill_metadata["internal_api_id"] = internal_id 
-    write_file(bill_uuid, bill_metadata) # Saves the JSON metadata (now with cleaned_bill_text)
+    write_file(bill_uuid, bill_metadata)
 
 
 
 if __name__ == "__main__":
-    try:
-        with open("/Users/justin/Desktop/GitHub.nosync/State_Legislation/state-elect-leg-scrapers/PA/pennsylvania_session_ids.json", "r") as file:
-            bill_data = json.load(file)
-    except FileNotFoundError:
-        print("Error: pennsylvania_session_ids.json not found for bill_data. Script might not work as expected.")
-        bill_data = [] 
-    except json.JSONDecodeError:
-        print("Error: pennsylvania_session_ids.json for bill_data is not valid JSON.")
-        bill_data = []
 
-    try:
-        with open("/Users/justin/Desktop/GitHub.nosync/State_Legislation/state-elect-leg-scrapers/PA/pennsylvania_session_ids.json", "r") as file:
-            session_data = json.load(file)
-    except FileNotFoundError:
-        print("Error: pennsylvania_session_ids.json not found for session_data. Script might not work as expected.")
-        session_data = []
-    except json.JSONDecodeError:
-        print("Error: pennsylvania_session_ids.json for session_data is not valid JSON.")
-        session_data = []
+    # try:
+    #     # This will show the full path to the requests package being used
+    #     requests_path = requests.__file__
+    #     print(f"requests module is imported from: {requests_path}")
 
-    session_main_input = input("Enter the session (e.g., 1995-1996 Regular): ").strip()
-    bill_number_main_input = input("Enter the bill number (e.g., SB 1351): ").strip()
-    
-    if session_main_input and bill_number_main_input:
-        try:
-            import lxml 
-        except ImportError:
-            print("\nWarning: lxml parser not found. HTML parsing might be slower or fail for complex pages.")
-            print("Consider installing it with: pip install lxml")
-            print("Ensure your BeautifulSoup constructor uses 'lxml' or change it to 'html.parser'.\n")
+    #     # This often reveals the bin/Scripts directory of the active virtual environment
+    #     # or the system Python's bin directory.
+    #     python_executable = sys.executable
+    #     print(f"Python interpreter being used: {python_executable}")
 
-        scrape_single_bill(session_main_input, bill_number_main_input)
+    #     # If you're in a virtual environment, its base path is often found here
+    #     # (though sys.executable is usually more direct for the interpreter)
+    #     # This might give you the path to the environment root.
+    #     print(f"sys.prefix (environment root): {sys.prefix}")
+
+    #     # Check if a virtual environment is active (more of a hint)
+    #     if hasattr(sys, 'real_prefix') or (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix):
+    #         print("A virtual environment appears to be active.")
+    #     else:
+    #         print("No virtual environment appears to be active (might be system Python).")
+
+    # except ImportError:
+    #     print("Error: 'requests' module not found.")
+    # except Exception as e:
+    #     print(f"An unexpected error occurred: {e}")
+
+    # loaded_data = prompt_and_load_json()
+
+    with open(file_path, 'r') as file:
+        loaded_data = json.load(file)
+
+    if loaded_data:
+        bill_data = loaded_data
+        session_data = loaded_data
+
+        session_main_input = input("Enter the session (e.g., 1995-1996 Regular): ").strip()
+        bill_number_main_input = input("Enter the bill number (e.g., SB 1351): ").strip()
+        
+        if session_main_input and bill_number_main_input:
+            try:
+                import lxml 
+            except ImportError:
+                print("\nWarning: lxml parser not found. HTML parsing might be slower or fail for complex pages.")
+                print("Consider installing it with: pip install lxml")
+                print("Ensure your BeautifulSoup constructor uses 'lxml' or change it to 'html.parser'.\n")
+
+            scrape_single_bill(session_main_input, bill_number_main_input)
+        else:
+            print("Session and Bill Number cannot be empty.")
     else:
-        print("Session and Bill Number cannot be empty.")
+        print("\nCould not load session data. Exiting script.")
