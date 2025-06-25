@@ -40,76 +40,74 @@ Your response must contain ONLY the processed bill text - no introduction, expla
 async def scrape_pdf_text(pdf_path, semaphore):
     async with semaphore:
         try:
-            await asyncio.sleep(10)  # Initial sleep to respect rate limit
-
-            logging.info(f"Processing PDF in chunks: {pdf_path}")
-            CHUNK_SIZE = 35
+            await asyncio.sleep(10)  # Respect rate limit
 
             reader = PdfReader(pdf_path)
             total_pages = len(reader.pages)
-            response_text = ""
 
-            for chunk_start in range(0, total_pages, CHUNK_SIZE):
-                chunk_end = min(chunk_start + CHUNK_SIZE, total_pages)
+            if total_pages > 35:
+                logging.info(f"Skipping {pdf_path}: too long ({total_pages} pages)")
+                return None
 
-                # Create in-memory chunk
-                writer = PdfWriter()
-                for i in range(chunk_start, chunk_end):
-                    writer.add_page(reader.pages[i])
+            logging.info(f"Uploading PDF file: {pdf_path}")
 
-                buffer = io.BytesIO()
-                writer.write(buffer)
-                buffer.seek(0)
+            writer = PdfWriter()
+            for page in reader.pages:
+                writer.add_page(page)
 
-                base64_string = base64.b64encode(buffer.read()).decode("utf-8")
+            buffer = io.BytesIO()
+            writer.write(buffer)
+            buffer.seek(0)
 
-                messages = [
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "document",
-                                "source": {
-                                    "type": "base64",
-                                    "media_type": "application/pdf",
-                                    "data": base64_string,
-                                },
+            base64_string = base64.b64encode(buffer.read()).decode("utf-8")
+
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "document",
+                            "source": {
+                                "type": "base64",
+                                "media_type": "application/pdf",
+                                "data": base64_string,
                             },
-                            {"type": "text", "text": PROMPT},
-                        ],
-                    }
-                ]
+                        },
+                        {"type": "text", "text": PROMPT},
+                    ],
+                }
+            ]
 
-                for attempt in range(1, MAX_RETRIES + 1):
-                    try:
-                        logging.info(f"Streaming Claude response for pages {chunk_start + 1}-{chunk_end} (attempt {attempt})")
-                        async with client.messages.stream(
-                            model="claude-3-7-sonnet-20250219",
-                            max_tokens=64000,
-                            messages=messages,
-                        ) as stream:
-                            chunk_text = ""
-                            async for chunk in stream.text_stream:
-                                chunk_text += chunk
-                        response_text += chunk_text + "\n"
-                        break  # success
-                    except Exception as stream_error:
-                        logging.warning(f"Stream attempt {attempt} failed for chunk {chunk_start + 1}-{chunk_end}: {stream_error}")
-                        if attempt == MAX_RETRIES:
-                            raise
-                        backoff_time = RETRY_BACKOFF_BASE * (attempt + 1)
-                        logging.info(f"Retrying in {backoff_time}s...")
-                        await asyncio.sleep(backoff_time)
+            for attempt in range(1, MAX_RETRIES + 1):
+                try:
+                    logging.info(f"Streaming Claude response for: {pdf_path} (attempt {attempt})")
+                    async with client.messages.stream(
+                        model="claude-3-7-sonnet-20250219",
+                        max_tokens=64000,
+                        messages=messages,
+                    ) as stream:
+                        response_text = ""
+                        async for chunk in stream.text_stream:
+                            response_text += chunk
+                    break  # Success
+                except Exception as stream_error:
+                    logging.warning(f"Stream attempt {attempt} failed: {stream_error}")
+                    if attempt == MAX_RETRIES:
+                        raise
+                    backoff_time = RETRY_BACKOFF_BASE * (attempt + 1)
+                    logging.info(f"Retrying in {backoff_time}s...")
+                    await asyncio.sleep(backoff_time)
 
-            # Save final combined response
             txt_path = f"{os.path.splitext(pdf_path)[0]}_html.txt"
             with open(txt_path, "w", encoding="utf-8") as f:
                 f.write(response_text)
 
-            logging.info(f"Completed full PDF: {pdf_path}")
+            logging.info(f"Completed: {pdf_path}")
+            return {"pdf_path": pdf_path, "status": "success", "text_path": txt_path}
 
         except Exception as e:
             logging.error(f"Failed on {pdf_path}: {e}")
+            return {"pdf_path": pdf_path, "status": "failed", "error": str(e)}
 
 
 def sync_scrape_text(pdf_path_str):
